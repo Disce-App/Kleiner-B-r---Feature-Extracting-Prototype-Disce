@@ -1,3 +1,4 @@
+import spacy
 import sys
 from pathlib import Path
 
@@ -688,6 +689,60 @@ def get_rare_words_list(tagged_sentences, threshold=3.0, max_words=20):
     
     return unique_rare
 
+# --- Dependency-Parsing mit spaCy: Baumtiefe ---------------------------------
+
+_spacy_nlp = None
+
+
+def get_spacy_nlp():
+    """
+    Lazy-Loader für das deutsche spaCy-Modell.
+    Wird nur einmal initialisiert und danach wiederverwendet.
+    """
+    global _spacy_nlp
+    if _spacy_nlp is None:
+        _spacy_nlp = spacy.load("de_core_news_sm")
+    return _spacy_nlp
+
+
+def dependency_tree_features(text: str):
+    """
+    Berechnet Baumtiefen-Features auf Basis des Dependency-Parsers.
+    - Für jeden Satz: maximale Tiefe vom Token zur Wurzel
+    - Liefert Aggregatwerte über alle Sätze
+    """
+    nlp = get_spacy_nlp()
+    doc = nlp(text)
+
+    sent_depths = []
+
+    for sent in doc.sents:
+        max_depth = 0
+        for token in sent:
+            depth = 0
+            head = token
+            # Kette nach oben bis zur Wurzel (head == token)
+            while head.head != head:
+                depth += 1
+                head = head.head
+            if depth > max_depth:
+                max_depth = depth
+        sent_depths.append(max_depth)
+
+    if not sent_depths:
+        return {
+            "avg_tree_depth": 0.0,
+            "min_tree_depth": 0,
+            "max_tree_depth": 0,
+            "num_sents_parsed": 0,
+        }
+
+    return {
+        "avg_tree_depth": mean(sent_depths),
+        "min_tree_depth": min(sent_depths),
+        "max_tree_depth": max(sent_depths),
+        "num_sents_parsed": len(sent_depths),
+    }
 
 
 # --- Dimensionen 0–1 --------------------------------------------------------
