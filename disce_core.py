@@ -26,6 +26,7 @@ from features_viewer import (
     compute_dimension_scores,
     estimate_cefr_score_from_dims,
     estimate_cefr_label_from_dims,
+    verb_mood_features,
 )
 
 
@@ -100,6 +101,9 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     # 6b) Morphologie-Features (Tempus/Kasus) ✅ NEU
     morph_feats = morphology_features(tagged_sentences)
 
+    # 6c) Verb-Modus (Konjunktiv) ✅ NEU
+    mood_feats = verb_mood_features(tagged_sentences)
+
     # 7) Dependency-Baumtiefe (spaCy) ✅ NEU
     dep_tree = dependency_tree_features(text)
 
@@ -151,4 +155,5 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         "morph_feats": morph_feats,
         "dep_tree": dep_tree,
         "debug_tags": debug_tags,
+        "mood_feats": mood_feats,
     }
