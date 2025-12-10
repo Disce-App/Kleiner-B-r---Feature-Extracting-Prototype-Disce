@@ -99,6 +99,7 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         lix=lix,
         mp_feats=mp_feats,
         freq_feats=freq_feats,  # ✅ NEU
+        dep_tree=dep_tree, 
     )
 
     cefr_score = estimate_cefr_score_from_dims(dim_scores)
