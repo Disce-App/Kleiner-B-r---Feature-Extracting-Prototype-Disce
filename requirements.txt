@@ -2,3 +2,4 @@
      somajo
      HanTa
      requests
+     wordfreq
