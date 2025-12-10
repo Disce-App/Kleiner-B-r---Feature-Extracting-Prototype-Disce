@@ -65,7 +65,7 @@ if st.button("Analysieren"):
             st.write(f"- Sehr häufige (Zipf>5.5): `{freq['very_common_share']:.1%}`")
             st.write(f"- Schwierigkeitsscore: `{freq['difficulty_score']:.3f}`")
 
-                        # Syntaktische Tiefe (spaCy)
+            # Syntaktische Tiefe (spaCy)
             st.subheader("Syntaktische Tiefe (spaCy)")
             dep = result.get("dep_tree")
             if dep and dep.get("num_sents_parsed", 0) > 0:
@@ -73,6 +73,32 @@ if st.button("Analysieren"):
                 st.write(f"- Min/Max: `{dep['min_tree_depth']}` / `{dep['max_tree_depth']}`")
             else:
                 st.write("- Keine Daten")
+
+            # Syntaktische Tiefe (spaCy)
+            st.subheader("Syntaktische Tiefe (spaCy)")
+            dep = result.get("dep_tree")
+            if dep and dep.get("num_sents_parsed", 0) > 0:
+                st.write(f"- Ø Baumtiefe: `{dep['avg_tree_depth']:.2f}`")
+                st.write(f"- Min/Max: `{dep['min_tree_depth']}` / `{dep['max_tree_depth']}`")
+            else:
+                st.write("- Keine Daten")
+
+            # ✅ Morphologie – auf gleicher Ebene wie die anderen Subheader!
+            st.subheader("Morphologie (Tempus/Kasus)")
+            morph = result.get("morph_feats", {})
+            if morph:
+                st.write(f"- Präsens: `{morph['present']}` ({morph['present_share']:.1%})")
+                st.write(f"- Präteritum: `{morph['past']}` ({morph['past_share']:.1%})")
+                st.write(f"- Partizip II: `{morph['perfect']}` ({morph['perfect_share']:.1%})")
+                st.write(f"- Vergangenheits-Ratio: `{morph['past_tense_ratio']:.1%}`")
+                st.markdown("---")
+                st.write(f"- Nominativ: `{morph['nominative']}` ({morph['nominative_share']:.1%})")
+                st.write(f"- Genitiv: `{morph['genitive']}` ({morph['genitive_share']:.1%})")
+                st.write(f"- Dativ: `{morph['dative']}` ({morph['dative_share']:.1%})")
+                st.write(f"- Akkusativ: `{morph['accusative']}` ({morph['accusative_share']:.1%})")
+                st.write(f"- Oblique-Ratio (Gen+Dat): `{morph['oblique_case_ratio']:.1%}`")
+
+            
 
             # Seltene Wörter anzeigen
             rare_words = result.get("rare_words", [])
