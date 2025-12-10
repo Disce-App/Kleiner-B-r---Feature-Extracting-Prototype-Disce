@@ -41,17 +41,18 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     num_sentences = len(tagged_sentences)
     num_tokens = count_tokens(tagged_sentences)
     
-# ✅ DEBUG: Erste 15 Tags für UI-Anzeige sammeln
-debug_tags = []
-for sent in tagged_sentences:
-    for tok in sent:
-        debug_tags.append(tok)
+    # ✅ DEBUG: Erste 15 Tags für UI-Anzeige sammeln
+    debug_tags = []
+    for sent in tagged_sentences:
+        for tok in sent:
+            debug_tags.append(tok)
+            if len(debug_tags) >= 15:
+                break
         if len(debug_tags) >= 15:
             break
-    if len(debug_tags) >= 15:
-        break
-
-num_sentences = len(tagged_sentences)
+    
+    num_sentences = len(tagged_sentences)
+    num_tokens = count_tokens(tagged_sentences)
     
     # ========== END DEBUG ============================
     
