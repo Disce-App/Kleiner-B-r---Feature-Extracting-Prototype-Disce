@@ -765,6 +765,7 @@ def compute_dimension_scores(
     lix,
     mp_feats,
     freq_feats=None,
+    dep_tree=None,
 ):
     """
     Errechnet normalisierte Dimensionen im Bereich [0,1].
@@ -781,7 +782,7 @@ def compute_dimension_scores(
     else:
         dims["grammar_accuracy"] = 0.0
 
-    # 2) Syntaktische Komplexität
+        # 2) Syntaktische Komplexität
     if lengths:
         avg_len = mean(lengths)
         finite_mean = mean(finite_verbs) if finite_verbs else 0.0
@@ -789,20 +790,29 @@ def compute_dimension_scores(
         cnps_mean = mean(complex_nps) if complex_nps else 0.0
         vorfeld_mean = mean(vorfeld) if vorfeld else 0.0
 
-        # Heuristische Skalen: 8–25 Tokens, 1–2.5 finite Verben,
-        # 0–2 Nebensätze, 0–2 komplexe NPs, 0–6 Vorfeld-Tokens
+        # Heuristische Skalen
         avg_len_norm = clamp01((avg_len - 8.0) / (25.0 - 8.0))
         finite_norm = clamp01((finite_mean - 1.0) / (2.5 - 1.0))
         sub_norm = clamp01((sub_mean - 0.0) / (2.0 - 0.0))
         cnps_norm = clamp01((cnps_mean - 0.0) / (2.0 - 0.0))
         vorfeld_norm = clamp01((vorfeld_mean - 0.0) / (6.0 - 0.0))
 
+        # ✅ NEU: Baumtiefe (spaCy)
+        # Typischer Bereich: 2 (sehr einfach) bis 8 (komplex)
+        if dep_tree and dep_tree.get("num_sents_parsed", 0) > 0:
+            tree_depth = dep_tree.get("avg_tree_depth", 0.0)
+            tree_depth_norm = clamp01((tree_depth - 2.0) / (8.0 - 2.0))
+        else:
+            tree_depth_norm = 0.0
+
+        # Gewichtung mit Baumtiefe (20%)
         dims["syntactic_complexity"] = (
-            0.3 * avg_len_norm
-            + 0.2 * finite_norm
-            + 0.2 * sub_norm
-            + 0.2 * cnps_norm
-            + 0.1 * vorfeld_norm
+            0.25 * avg_len_norm
+            + 0.15 * finite_norm
+            + 0.15 * sub_norm
+            + 0.10 * cnps_norm
+            + 0.10 * vorfeld_norm
+            + 0.25 * tree_depth_norm      # ✅ NEU
         )
     else:
         dims["syntactic_complexity"] = 0.0
