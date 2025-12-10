@@ -79,28 +79,24 @@ if st.button("Analysieren"):
             "nur diagnostisch berechnet, fließt aber **noch nicht** in den CEFR-Score ein."
         )
 
-        # 🔧 DEBUG-BEREICH ------------------------------------------------------
+        # 🔧 DEBUG-BEREICH (NUR wenn debug_mode UND result existiert)
         if debug_mode:
             st.markdown("---")
             st.subheader("🔧 Debug-Ansicht – Roh-Features")
 
-            # Tabs für verschiedene Feature-Gruppen
             tab1, tab2, tab3, tab4 = st.tabs(
                 ["Grammatik & Dimensionen", "Lexik & Wortfrequenz", "Kohäsion & Referenzen", "Struktur & Satztypen"]
             )
 
-            # 1) Grammatik & Dimensionen
             with tab1:
                 st.markdown("**Grammatik (LanguageTool)**")
                 st.write(f"- Issues gesamt: `{result['num_issues']}`")
                 st.write(f"- Fehler pro 100 Tokens: `{result['errors_per_100']:.2f}`")
 
                 st.markdown("**Normalisierte Dimensionen (0–1)**")
-                dims = result["dims"]
-                for name, val in dims.items():
+                for name, val in result["dims"].items():
                     st.write(f"- `{name}`: **{val:.3f}**")
 
-            # 2) Lexik & Wortfrequenz
             with tab2:
                 st.markdown("**Lexikalische Basiswerte**")
                 lex = result["lex_feats"]
@@ -109,13 +105,6 @@ if st.button("Analysieren"):
                 st.write(f"- TTR: `{lex['ttr']:.3f}`")
                 st.write(f"- Lemma-TTR: `{lex['lemma_ttr']:.3f}`")
                 st.write(f"- Anteil Inhaltswörter: `{lex['content_word_share']:.3f}`")
-
-                st.markdown("**MATTR (Moving-Average TTR)**")
-                mattr = result.get("mattr")
-                if mattr:
-                    st.json(mattr)
-                else:
-                    st.write("_MATTR wird aktuell nur in der CLI ausgegeben._")
 
                 st.markdown("**Wortfrequenz (wordfreq)**")
                 freq = result["freq_feats"]
@@ -133,17 +122,16 @@ if st.button("Analysieren"):
                     st.table(rare_words[:20])
 
                 st.markdown("**Dependency-Baumtiefe (spaCy)**")
-                dep = result.get("dep_tree", {})
-                if dep:
+                dep = result.get("dep_tree")
+                if dep and dep.get("num_sents_parsed", 0) > 0:
                     st.write(f"- Ø Baumtiefe pro Satz: `{dep['avg_tree_depth']:.2f}`")
                     st.write(f"- Min/Max Baumtiefe: `{dep['min_tree_depth']}` / `{dep['max_tree_depth']}`")
                     st.write(f"- Sätze (spaCy): `{dep['num_sents_parsed']}`")
                 else:
-                    st.write("_Keine Daten (spaCy nicht installiert?)._")
+                    st.write("_Keine Daten (spaCy nicht geladen oder Fehler)._")
 
-            # 3) Kohäsion & Referenzen
             with tab3:
-                st.markdown("**Konnektoren (einfache Liste)**")
+                st.markdown("**Konnektoren**")
                 coh = result["coh_feats"]
                 st.write(f"- Konnektoren gesamt: `{coh['connector_count']}`")
                 st.write(f"- Verschiedene Konnektoren: `{coh['connector_type_count']}`")
@@ -165,10 +153,8 @@ if st.button("Analysieren"):
                 st.write(f"- Pronomen gesamt: `{pron['total_pronouns']}`")
                 st.write(f"- Anteil Pronomen: `{pron['share_pronouns']:.3f}`")
                 st.write(f"- 3.-Person-Referenzen: `{pron['third_person_refs']}`")
-                st.write("Nach Person:")
                 st.json(pron["by_person"])
 
-            # 4) Struktur & Satztypen
             with tab4:
                 st.markdown("**Satztypen**")
                 st.json(result["sent_types"])
