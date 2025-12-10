@@ -123,7 +123,7 @@ if st.button("Analysieren"):
                 for name, val in result["dims"].items():
                     st.write(f"- `{name}`: **{val:.3f}**")
 
-                        with tab1:
+            with tab1:
                 st.markdown("**Grammatik (LanguageTool)**")
                 st.write(f"- Issues gesamt: `{result['num_issues']}`")
                 st.write(f"- Fehler pro 100 Tokens: `{result['errors_per_100']:.2f}`")
