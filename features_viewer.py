@@ -43,7 +43,7 @@ def pos_tag_sentences(sentences):
     tagged_sentences = []
     for sent in sentences:
         words = [tok.text for tok in sent]
-        tagged = tagger.tag_sent(words)
+        tagged = tagger.tag_sent(words, taglevel=2)
         tagged_sentences.append(tagged)
     return tagged_sentences
 
@@ -574,27 +574,14 @@ def modal_particle_features(tagged_sentences):
 
 def morphology_features(tagged_sentences):
     """
-    Extrahiert Tempus- und Kasus-Verteilungen aus den HanTa-POS-Tags.
-    
-    Tempus-Marker in finiten Verben:
-    - .Pres. = Präsens
-    - .Past. = Präteritum
-    - VVPP/VAPP = Partizip II (Perfekt/Plusquamperfekt/Passiv)
-    
-    Kasus-Marker in Nominalgruppen:
-    - .Nom. = Nominativ
-    - .Gen. = Genitiv
-    - .Dat. = Dativ
-    - .Acc. = Akkusativ
+    Extrahiert Tempus- und Kasus-Verteilungen aus den HanTa-POS-Tags (taglevel=2).
     """
-    # Tempus-Zähler
     tense_counts = {
         "present": 0,
-        "past": 0,       # Präteritum
-        "perfect": 0,    # Partizip II (VVPP, VAPP)
+        "past": 0,
+        "perfect": 0,
     }
     
-    # Kasus-Zähler (nur für Nomen/Pronomen/Artikel)
     case_counts = {
         "nominative": 0,
         "genitive": 0,
@@ -610,59 +597,52 @@ def morphology_features(tagged_sentences):
             if len(token_tuple) < 3:
                 continue
             word, lemma, pos = token_tuple[:3]
+            pos_upper = pos.upper()
             
-            # Tempus aus finiten Verben
-            if "FIN" in pos:
+            # Finite Verben erkennen
+            if "FIN" in pos_upper:
                 total_finite_verbs += 1
-                if ".Pres" in pos:
+                # Tempus-Marker (HanTa taglevel=2 Format)
+                if ".PRES" in pos_upper or "PRES." in pos_upper:
                     tense_counts["present"] += 1
-                elif ".Past" in pos:
+                elif ".PAST" in pos_upper or "PAST." in pos_upper or ".PRT" in pos_upper:
                     tense_counts["past"] += 1
             
-            # Partizip II (für Perfekt/Passiv)
-            if pos.startswith("VVPP") or pos.startswith("VAPP"):
+            # Partizip II
+            if pos_upper.startswith("VVPP") or pos_upper.startswith("VAPP"):
                 tense_counts["perfect"] += 1
             
-            # Kasus aus Nomen, Pronomen, Artikeln
-            if pos.startswith(("NN", "NE", "ART", "P")):
-                if ".Nom" in pos:
+            # Kasus erkennen (für Nomen, Artikel, Pronomen)
+            if any(x in pos_upper for x in ["NN", "NE", "ART", "PDS", "PIS", "PPER", "PPOS", "PRELS", "PRF"]):
+                if ".NOM" in pos_upper or "NOM." in pos_upper:
                     case_counts["nominative"] += 1
                     total_case_marked += 1
-                elif ".Gen" in pos:
+                elif ".GEN" in pos_upper or "GEN." in pos_upper:
                     case_counts["genitive"] += 1
                     total_case_marked += 1
-                elif ".Dat" in pos:
+                elif ".DAT" in pos_upper or "DAT." in pos_upper:
                     case_counts["dative"] += 1
                     total_case_marked += 1
-                elif ".Acc" in pos:
+                elif ".ACC" in pos_upper or "ACC." in pos_upper or ".AKK" in pos_upper:
                     case_counts["accusative"] += 1
                     total_case_marked += 1
     
     # Anteile berechnen
     tense_shares = {}
     for t, count in tense_counts.items():
-        if total_finite_verbs > 0:
-            tense_shares[f"{t}_share"] = round(count / total_finite_verbs, 3)
-        else:
-            tense_shares[f"{t}_share"] = 0.0
+        tense_shares[f"{t}_share"] = round(count / total_finite_verbs, 3) if total_finite_verbs > 0 else 0.0
     
     case_shares = {}
     for c, count in case_counts.items():
-        if total_case_marked > 0:
-            case_shares[f"{c}_share"] = round(count / total_case_marked, 3)
-        else:
-            case_shares[f"{c}_share"] = 0.0
+        case_shares[f"{c}_share"] = round(count / total_case_marked, 3) if total_case_marked > 0 else 0.0
     
     return {
-        # Absolute Zahlen
         **tense_counts,
         **case_counts,
         "total_finite_verbs": total_finite_verbs,
         "total_case_marked": total_case_marked,
-        # Anteile
         **tense_shares,
         **case_shares,
-        # Abgeleitete Metriken
         "past_tense_ratio": round(
             (tense_counts["past"] + tense_counts["perfect"]) / total_finite_verbs, 3
         ) if total_finite_verbs > 0 else 0.0,
@@ -670,6 +650,7 @@ def morphology_features(tagged_sentences):
             (case_counts["genitive"] + case_counts["dative"]) / total_case_marked, 3
         ) if total_case_marked > 0 else 0.0,
     }
+
 
 
 # --- Wortfrequenz-Features (SUBTLEX-DE via wordfreq) ------------------------
