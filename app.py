@@ -89,6 +89,21 @@ if st.button("Analysieren"):
                 st.write(f"- Akkusativ: `{morph['accusative']}` ({morph['accusative_share']:.1%})")
                 st.write(f"- Oblique-Ratio (Gen+Dat): `{morph['oblique_case_ratio']:.1%}`")
 
+
+            # Verb-Modus (Konjunktiv)
+            st.subheader("Verb-Modus")
+            mood = result.get("mood_feats", {})
+            if mood and mood.get("total_finite_verbs", 0) > 0:
+                st.write(f"- Indikativ: `{mood['indicative']}` ({mood['indicative_share']:.1%})")
+                st.write(f"- Konjunktiv I: `{mood['subjunctive_1']}` ({mood['subjunctive_1_share']:.1%})")
+                st.write(f"- Konjunktiv II: `{mood['subjunctive_2']}` ({mood['subjunctive_2_share']:.1%})")
+                st.write(f"- würde-Form: `{mood['wuerde_form']}` ({mood['wuerde_form_share']:.1%})")
+                st.write(f"- Imperativ: `{mood['imperative']}` ({mood['imperative_share']:.1%})")
+                st.write(f"- **Konjunktiv gesamt: `{mood['total_subjunctive']}` ({mood['subjunctive_share']:.1%})**")
+            else:
+                st.write("- Keine Daten")
+
+
             
 
             # Seltene Wörter anzeigen
@@ -144,6 +159,15 @@ if st.button("Analysieren"):
                     st.json(morph)  # Zeigt alles als JSON
                 else:
                     st.write("_Keine Morphologie-Daten._")
+
+
+                st.markdown("**Verb-Modus (Konjunktiv)**")
+                mood = result.get("mood_feats", {})
+                if mood:
+                    st.json(mood)
+                else:
+                    st.write("_Keine Modus-Daten._")
+
 
 
             with tab1:
