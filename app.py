@@ -74,15 +74,6 @@ if st.button("Analysieren"):
             else:
                 st.write("- Keine Daten")
 
-            # Syntaktische Tiefe (spaCy)
-            st.subheader("Syntaktische Tiefe (spaCy)")
-            dep = result.get("dep_tree")
-            if dep and dep.get("num_sents_parsed", 0) > 0:
-                st.write(f"- Ø Baumtiefe: `{dep['avg_tree_depth']:.2f}`")
-                st.write(f"- Min/Max: `{dep['min_tree_depth']}` / `{dep['max_tree_depth']}`")
-            else:
-                st.write("- Keine Daten")
-
             # ✅ Morphologie – auf gleicher Ebene wie die anderen Subheader!
             st.subheader("Morphologie (Tempus/Kasus)")
             morph = result.get("morph_feats", {})
@@ -131,6 +122,29 @@ if st.button("Analysieren"):
                 st.markdown("**Normalisierte Dimensionen (0–1)**")
                 for name, val in result["dims"].items():
                     st.write(f"- `{name}`: **{val:.3f}**")
+
+                        with tab1:
+                st.markdown("**Grammatik (LanguageTool)**")
+                st.write(f"- Issues gesamt: `{result['num_issues']}`")
+                st.write(f"- Fehler pro 100 Tokens: `{result['errors_per_100']:.2f}`")
+
+                st.markdown("**Normalisierte Dimensionen (0–1)**")
+                for name, val in result["dims"].items():
+                    st.write(f"- `{name}`: **{val:.3f}**")
+
+                # ✅ NEU: Morphologie im Debug
+                st.markdown("**Morphologie (Tempus/Kasus)**")
+                morph = result.get("morph_feats", {})
+                if morph:
+                    st.write(f"- Finite Verben: `{morph.get('total_finite_verbs', 0)}`")
+                    st.write(f"- Präsens: `{morph.get('present', 0)}`")
+                    st.write(f"- Präteritum: `{morph.get('past', 0)}`")
+                    st.write(f"- Partizip II: `{morph.get('perfect', 0)}`")
+                    st.write(f"- Kasus-markiert: `{morph.get('total_case_marked', 0)}`")
+                    st.json(morph)  # Zeigt alles als JSON
+                else:
+                    st.write("_Keine Morphologie-Daten._")
+
 
             with tab2:
                 st.markdown("**Lexikalische Basiswerte**")
