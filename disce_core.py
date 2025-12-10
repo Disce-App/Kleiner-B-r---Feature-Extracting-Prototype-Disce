@@ -120,4 +120,5 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         "mp_feats": mp_feats,
         "freq_feats": freq_feats,      # ✅ NEU
         "rare_words": rare_words,       # ✅ NEU
+        "mattr": mattr,
     }
