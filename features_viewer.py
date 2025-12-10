@@ -98,23 +98,29 @@ def finite_verbs_per_sentence(tagged_sentences):
 
 def estimated_subclauses(tagged_sentences):
     """
-    Sehr grobe Nebensatz-Heuristik:
-    - KOUS (unterordnende Konjunktion) + finites Verb im Satz -> 1 Nebensatz-Kandidat.
+    Nebensatz-Heuristik:
+    - KOUS (unterordnende Konjunktion): dass, weil, obwohl, wenn, ...
+    - PRELS (Relativpronomen): der, die, das, welcher, ...
+    - PWS (w-Fragewörter in indirekten Fragen): was, wer, wo, ...
+    + finites Verb im Satz -> 1 Nebensatz-Kandidat.
     """
     counts = []
     for sent in tagged_sentences:
-        kous_count = 0
+        subord_count = 0
         finite_count = 0
         for token_tuple in sent:
             pos = token_tuple[-1]
-            if pos == "KOUS":
-                kous_count += 1
+            # Subordinierende Einleiter: KOUS, Relativpronomen, w-Wörter
+            if pos in {"KOUS", "PRELS", "PWS"}:
+                subord_count += 1
+            # Finite Verben
             if pos.endswith("(FIN)") and (
                 pos.startswith("VV") or pos.startswith("VA") or pos.startswith("VM")
             ):
                 finite_count += 1
-        counts.append(min(kous_count, finite_count))
+        counts.append(min(subord_count, finite_count))
     return counts
+
 
 
 def complex_nps_per_sentence(tagged_sentences):
