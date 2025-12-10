@@ -21,6 +21,7 @@ from features_viewer import (
     modal_particle_features,
     word_frequency_features,      # ✅ NEU
     get_rare_words_list,          # ✅ NEU
+    dependency_tree_features,
     compute_dimension_scores,
     estimate_cefr_score_from_dims,
     estimate_cefr_label_from_dims,
@@ -77,7 +78,10 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     freq_feats = word_frequency_features(tagged_sentences)
     rare_words = get_rare_words_list(tagged_sentences)
 
-    # 7) Dimensionen
+    # 7) Dependency-Baumtiefe (spaCy) ✅ NEU
+    dep_tree = dependency_tree_features(text)
+
+    # 8) Dimensionen
     dim_scores = compute_dimension_scores(
         num_tokens=num_tokens,
         num_issues=num_issues,
@@ -121,4 +125,5 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         "freq_feats": freq_feats,      # ✅ NEU
         "rare_words": rare_words,       # ✅ NEU
         "mattr": mattr,
+        "dep_tree": dep_tree,
     }
