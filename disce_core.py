@@ -40,6 +40,24 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     tagged_sentences = pos_tag_sentences(sentences)
     num_sentences = len(tagged_sentences)
     num_tokens = count_tokens(tagged_sentences)
+    
+    # ========== DEBUG: Zeige echte POS-Tags ==========
+    print("\n=== DEBUG: Erste 15 POS-Tags ===")
+    count = 0
+    for sent in tagged_sentences:
+        for tok in sent:
+            print(tok)
+            count += 1
+            if count >= 15:
+                break
+        if count >= 15:
+            break
+    print("================================\n")
+    
+    # ========== END DEBUG ============================
+    
+    num_sentences = len(tagged_sentences)
+
 
     # 2) Grammatik (für PoC: standardmäßig ausgeschaltet)
     if use_grammar_check:
