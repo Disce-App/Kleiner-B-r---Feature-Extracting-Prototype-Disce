@@ -574,56 +574,60 @@ def modal_particle_features(tagged_sentences):
 
 def morphology_features(tagged_sentences):
     """
-    Extrahiert Tempus- und Kasus-Verteilungen aus den HanTa-POS-Tags (taglevel=2).
+    Extrahiert Tempus- und Kasus-Verteilungen mit spaCy (nicht HanTa).
+    HanTa liefert keine morphologischen Details, spaCy schon.
     """
-    tense_counts = {
-        "present": 0,
-        "past": 0,
-        "perfect": 0,
-    }
+    nlp = get_spacy_nlp()
     
-    case_counts = {
-        "nominative": 0,
-        "genitive": 0,
-        "dative": 0,
-        "accusative": 0,
-    }
+    # Rekonstruiere den Text aus den tagged_sentences
+    words = []
+    for sent in tagged_sentences:
+        for tok in sent:
+            if len(tok) >= 1:
+                words.append(tok[0])
+    text = " ".join(words)
+    
+    doc = nlp(text)
+    
+    tense_counts = {"present": 0, "past": 0, "perfect": 0}
+    case_counts = {"nominative": 0, "genitive": 0, "dative": 0, "accusative": 0}
     
     total_finite_verbs = 0
     total_case_marked = 0
     
-    for sent in tagged_sentences:
-        for token_tuple in sent:
-            if len(token_tuple) < 3:
-                continue
-            word, lemma, pos = token_tuple[:3]
-            pos_upper = pos.upper()
+    for token in doc:
+        # Tempus aus Verben
+        if token.pos_ == "VERB" or token.pos_ == "AUX":
+            tense = token.morph.get("Tense")
+            verbform = token.morph.get("VerbForm")
             
-            # Finite Verben erkennen
-            if "FIN" in pos_upper:
+            # Finite Verben (nicht Infinitiv, nicht Partizip)
+            if verbform and "Fin" in verbform:
                 total_finite_verbs += 1
-                # Tempus-Marker (HanTa taglevel=2 Format)
-                if ".PRES" in pos_upper or "PRES." in pos_upper:
-                    tense_counts["present"] += 1
-                elif ".PAST" in pos_upper or "PAST." in pos_upper or ".PRT" in pos_upper:
-                    tense_counts["past"] += 1
+                if tense:
+                    if "Pres" in tense:
+                        tense_counts["present"] += 1
+                    elif "Past" in tense:
+                        tense_counts["past"] += 1
             
-            # Partizip II
-            if pos_upper.startswith("VVPP") or pos_upper.startswith("VAPP"):
+            # Partizip II (für Perfekt/Passiv)
+            if verbform and "Part" in verbform:
                 tense_counts["perfect"] += 1
-            
-            # Kasus erkennen (für Nomen, Artikel, Pronomen)
-            if any(x in pos_upper for x in ["NN", "NE", "ART", "PDS", "PIS", "PPER", "PPOS", "PRELS", "PRF"]):
-                if ".NOM" in pos_upper or "NOM." in pos_upper:
+        
+        # Kasus aus Nomen, Pronomen, Artikeln
+        if token.pos_ in {"NOUN", "PROPN", "PRON", "DET"}:
+            case = token.morph.get("Case")
+            if case:
+                if "Nom" in case:
                     case_counts["nominative"] += 1
                     total_case_marked += 1
-                elif ".GEN" in pos_upper or "GEN." in pos_upper:
+                elif "Gen" in case:
                     case_counts["genitive"] += 1
                     total_case_marked += 1
-                elif ".DAT" in pos_upper or "DAT." in pos_upper:
+                elif "Dat" in case:
                     case_counts["dative"] += 1
                     total_case_marked += 1
-                elif ".ACC" in pos_upper or "ACC." in pos_upper or ".AKK" in pos_upper:
+                elif "Acc" in case:
                     case_counts["accusative"] += 1
                     total_case_marked += 1
     
@@ -650,8 +654,6 @@ def morphology_features(tagged_sentences):
             (case_counts["genitive"] + case_counts["dative"]) / total_case_marked, 3
         ) if total_case_marked > 0 else 0.0,
     }
-
-
 
 # --- Wortfrequenz-Features (SUBTLEX-DE via wordfreq) ------------------------
 
