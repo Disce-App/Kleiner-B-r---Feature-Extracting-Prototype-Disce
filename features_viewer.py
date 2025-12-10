@@ -768,31 +768,31 @@ def compute_dimension_scores(
     dims["lexical_diversity"] = 0.7 * mattr_norm + 0.3 * content_norm
 
     # 4) Kohäsion
+    conn_density = coh_feats.get("connector_density_per_100_tokens", 0.0) if coh_feats else 0.0
+    # einfache Normierung: 0–10 Konnektoren/100 Tokens
+    conn_norm = clamp01(conn_density / 10.0)
 
-# Konnektoren: wir nehmen an, 0–10 Konnektoren pro 100 Tokens ist ein sinnvoller Bereich
-conn_density = coh_feats.get("connector_density_per_100_tokens", 0.0) if coh_feats else 0.0
-conn_norm = clamp01(conn_density / 10.0)  # 0 Konnektoren -> 0.0, 10+ -> 1.0
+    if overlap is not None:
+        ov = overlap.get("avg_overlap", 0.0)
+        # 0.0–0.5 Jaccard-Overlap
+        overlap_norm = clamp01(ov / 0.5)
+    else:
+        overlap_norm = 0.0
 
-# Lexikalischer Overlap: direkt 0–0.5 normalisieren
-if overlap is not None:
-    ov = overlap.get("avg_overlap", 0.0)
-    # 0.0–0.5 Jaccard-Overlap
-    overlap_norm = clamp01(ov / 0.5)
-else:
-    overlap_norm = 0.0
+    dims["cohesion"] = 0.5 * conn_norm + 0.5 * overlap_norm
 
-dims["cohesion"] = 0.5 * conn_norm + 0.5 * overlap_norm
-
-            # 5) Textschwierigkeit (Lesbarkeit + Wortfrequenz) – höher = schwieriger
+    # 5) Textschwierigkeit (Lesbarkeit + Wortfrequenz) – höher = schwieriger
     if lix is not None:
         lix_value = lix.get("lix", 0.0)
+        # 20 (leicht) – 60 (schwer)
         lix_norm = clamp01((lix_value - 20.0) / (60.0 - 20.0))
     else:
         lix_norm = 0.0
-    
+
     if freq_feats is not None:
         freq_difficulty = freq_feats.get("difficulty_score", 0.0)
         rare_share = freq_feats.get("rare_word_share", 0.0)
+        # Rare words boost: bis zu 0.2 extra, wenn > 20% seltene Wörter
         rare_boost = clamp01(rare_share / 0.2) * 0.2
         freq_score = clamp01(freq_difficulty + rare_boost)
         # Kombiniere LIX (40%) und Wortfrequenz (60%)
