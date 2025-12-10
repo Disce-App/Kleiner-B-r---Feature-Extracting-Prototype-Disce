@@ -1090,7 +1090,8 @@ if __name__ == "__main__":
         )
     print()
 
-        print()
+    print()
+    
     print("=== Wortfrequenz (SUBTLEX-DE) ===")
     print(f"Ø Zipf-Frequenz:        {freq_feats['avg_zipf']:.2f}")
     print(f"Median Zipf:            {freq_feats['median_zipf']:.2f}")
