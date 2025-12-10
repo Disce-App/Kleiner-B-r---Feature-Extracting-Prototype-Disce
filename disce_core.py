@@ -121,3 +121,10 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         "freq_feats": freq_feats,      # ✅ NEU
         "rare_words": rare_words,       # ✅ NEU
     }
+
+print("DEBUG cohesion:")
+print("  connector_count:", coh_feats["connector_count"])
+print("  connector_density:", coh_feats["connector_density_per_100_tokens"])
+print("  avg_overlap:", overlap["avg_overlap"] if overlap else None)
+print("  dims['cohesion']:", dim_scores["cohesion"])
+
