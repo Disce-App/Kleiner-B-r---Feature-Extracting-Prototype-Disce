@@ -1,6 +1,5 @@
 import streamlit as st
-from disce_core import analyze_text_for_ui  # oder disce_core, wenn du auslagerst
-
+from disce_core import analyze_text_for_ui
 
 st.set_page_config(page_title="Disce CEFR-Demo", layout="wide")
 
@@ -33,7 +32,7 @@ if st.button("Analysieren"):
             dims = result["dims"]
             for name, val in dims.items():
                 if name == "written_formality":
-                    continue  # sonst doppelt mit register_informality
+                    continue
                 st.write(f"- **{name}**: {val:.3f}")
 
         with col2:
@@ -52,6 +51,21 @@ if st.button("Analysieren"):
             st.write(f"- Unikate Lemmata: `{lex['unique_lemmas']}`")
             st.write(f"- TTR: `{lex['ttr']:.3f}`")
             st.write(f"- Lemma-TTR: `{lex['lemma_ttr']:.3f}`")
+            
+            # ✅ NEU: Wortfrequenz-Sektion
+            st.subheader("Wortfrequenz (SUBTLEX-DE)")
+            freq = result["freq_feats"]
+            st.write(f"- Ø Zipf-Frequenz: `{freq['avg_zipf']:.2f}`")
+            st.write(f"- Seltene Wörter (Zipf<3): `{freq['rare_word_count']}` ({freq['rare_word_share']:.1%})")
+            st.write(f"- Sehr häufige (Zipf>5.5): `{freq['very_common_share']:.1%}`")
+            st.write(f"- Schwierigkeitsscore: `{freq['difficulty_score']:.3f}`")
+            
+            # Seltene Wörter anzeigen
+            rare_words = result.get("rare_words", [])
+            if rare_words:
+                with st.expander("🔍 Seltenste Wörter im Text"):
+                    for w in rare_words[:10]:
+                        st.write(f"- **{w['word']}** ({w['lemma']}, Zipf={w['zipf']})")
 
         st.subheader("Kommentar zur Schätzung")
         st.write(
