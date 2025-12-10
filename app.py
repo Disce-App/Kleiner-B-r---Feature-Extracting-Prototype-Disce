@@ -75,6 +75,16 @@ if st.button("Analysieren"):
                     st.markdown("**Seltenste Wörter:**")
                     st.table(rare_words[:20])
 
+                            st.markdown("**Dependency-Baumtiefe (spaCy)**")
+                dep = result.get("dep_tree", {})
+                if dep:
+                    st.write(f"- Ø Baumtiefe pro Satz: `{dep['avg_tree_depth']:.2f}`")
+                    st.write(f"- Min/Max Baumtiefe: `{dep['min_tree_depth']}` / `{dep['max_tree_depth']}`")
+                    st.write(f"- Sätze (spaCy): `{dep['num_sents_parsed']}`")
+                else:
+                    st.write("_Keine Daten._")
+
+
             # 3) Kohäsion & Referenzen
             with tab3:
                 st.markdown("**Konnektoren (einfache Liste)**")
