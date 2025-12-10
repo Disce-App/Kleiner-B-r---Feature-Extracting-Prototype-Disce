@@ -146,6 +146,24 @@ if st.button("Analysieren"):
                     st.write("_Keine Morphologie-Daten._")
 
 
+            with tab1:
+                st.markdown("**Grammatik (LanguageTool)**")
+                st.write(f"- Issues gesamt: `{result['num_issues']}`")
+                st.write(f"- Fehler pro 100 Tokens: `{result['errors_per_100']:.2f}`")
+
+                # ✅ NEU: Echte POS-Tags anzeigen
+                st.markdown("**🔍 Erste 15 POS-Tags (HanTa)**")
+                debug_tags = result.get("debug_tags", [])
+                if debug_tags:
+                    for tag in debug_tags:
+                        st.code(str(tag))
+                else:
+                    st.write("_Keine Tags verfügbar._")
+
+                st.markdown("**Normalisierte Dimensionen (0–1)**")
+                ...
+
+
             with tab2:
                 st.markdown("**Lexikalische Basiswerte**")
                 lex = result["lex_feats"]
