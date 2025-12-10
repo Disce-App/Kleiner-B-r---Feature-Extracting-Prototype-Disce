@@ -4,7 +4,7 @@ from pathlib import Path
 import requests
 from somajo import SoMaJo
 from HanTa import HanoverTagger as ht
-
+from wordfreq import word_frequency, zipf_frequency
 
 LANGUAGETOOL_API_URL = "https://api.languagetool.org/v2/check"
 
@@ -558,6 +558,148 @@ def modal_particle_features(tagged_sentences):
     }
 
 
+# --- Wortfrequenz-Features (SUBTLEX-DE via wordfreq) ------------------------
+
+def word_frequency_features(tagged_sentences):
+    """
+    Berechnet Wortfrequenz-basierte Features mit der wordfreq-Bibliothek.
+    Nutzt SUBTLEX-DE und andere deutsche Korpora.
+    
+    Zipf-Skala: 1-2 = sehr selten, 3-4 = selten, 4-5 = mittel, 5-6 = häufig, 6-7 = sehr häufig
+    
+    Returns:
+        dict mit:
+        - avg_zipf: Durchschnittliche Zipf-Frequenz (höher = einfachere Wörter)
+        - min_zipf: Niedrigste Zipf-Frequenz (schwerstes Wort)
+        - rare_word_count: Anzahl seltener Wörter (Zipf < 3.0)
+        - rare_word_share: Anteil seltener Wörter
+        - very_common_share: Anteil sehr häufiger Wörter (Zipf > 5.5)
+        - unknown_count: Wörter, die nicht im Korpus sind
+        - difficulty_score: Normalisierter Schwierigkeitswert 0-1
+    """
+    zipf_values = []
+    rare_count = 0
+    very_common_count = 0
+    unknown_count = 0
+    total_content_words = 0
+    
+    # Nur Inhaltswörter analysieren (N, V, ADJ, ADV)
+    for sent in tagged_sentences:
+        for token_tuple in sent:
+            if len(token_tuple) < 3:
+                continue
+            word, lemma, pos = token_tuple[:3]
+            
+            # Nur Inhaltswörter (keine Funktionswörter, Satzzeichen etc.)
+            if not pos.startswith(("N", "V", "ADJ", "ADV")):
+                continue
+            
+            # Lemma für Frequenzabfrage nutzen (robuster als Wortform)
+            lemma_lower = lemma.lower()
+            total_content_words += 1
+            
+            # Zipf-Frequenz abrufen (0 = nicht gefunden)
+            zipf = zipf_frequency(lemma_lower, "de")
+            
+            if zipf == 0:
+                # Wort nicht im Korpus - versuche Wortform statt Lemma
+                zipf = zipf_frequency(word.lower(), "de")
+                if zipf == 0:
+                    unknown_count += 1
+                    # Unbekannte Wörter als "selten" behandeln
+                    zipf = 2.0
+            
+            zipf_values.append(zipf)
+            
+            if zipf < 3.0:
+                rare_count += 1
+            elif zipf > 5.5:
+                very_common_count += 1
+    
+    if not zipf_values:
+        return {
+            "avg_zipf": 0.0,
+            "min_zipf": 0.0,
+            "max_zipf": 0.0,
+            "median_zipf": 0.0,
+            "rare_word_count": 0,
+            "rare_word_share": 0.0,
+            "very_common_share": 0.0,
+            "unknown_count": 0,
+            "unknown_share": 0.0,
+            "difficulty_score": 0.5,
+        }
+    
+    # Statistiken berechnen
+    sorted_zipf = sorted(zipf_values)
+    n = len(sorted_zipf)
+    median_zipf = sorted_zipf[n // 2] if n % 2 == 1 else (sorted_zipf[n // 2 - 1] + sorted_zipf[n // 2]) / 2
+    
+    avg_zipf = sum(zipf_values) / len(zipf_values)
+    
+    # Schwierigkeitsscore: Invertierte und normalisierte Zipf-Frequenz
+    # Zipf 2.5 (schwer) -> 1.0, Zipf 6.0 (leicht) -> 0.0
+    difficulty_raw = (6.0 - avg_zipf) / (6.0 - 2.5)
+    difficulty_score = max(0.0, min(1.0, difficulty_raw))
+    
+    return {
+        "avg_zipf": round(avg_zipf, 3),
+        "min_zipf": round(min(zipf_values), 3),
+        "max_zipf": round(max(zipf_values), 3),
+        "median_zipf": round(median_zipf, 3),
+        "rare_word_count": rare_count,
+        "rare_word_share": round(rare_count / total_content_words, 3) if total_content_words > 0 else 0.0,
+        "very_common_share": round(very_common_count / total_content_words, 3) if total_content_words > 0 else 0.0,
+        "unknown_count": unknown_count,
+        "unknown_share": round(unknown_count / total_content_words, 3) if total_content_words > 0 else 0.0,
+        "difficulty_score": round(difficulty_score, 3),
+    }
+
+
+def get_rare_words_list(tagged_sentences, threshold=3.0, max_words=20):
+    """
+    Gibt eine Liste der seltensten Wörter im Text zurück.
+    Nützlich für die Anzeige in der UI.
+    """
+    rare_words = []
+    
+    for sent in tagged_sentences:
+        for token_tuple in sent:
+            if len(token_tuple) < 3:
+                continue
+            word, lemma, pos = token_tuple[:3]
+            
+            if not pos.startswith(("N", "V", "ADJ", "ADV")):
+                continue
+            
+            lemma_lower = lemma.lower()
+            zipf = zipf_frequency(lemma_lower, "de")
+            
+            if zipf == 0:
+                zipf = zipf_frequency(word.lower(), "de")
+            
+            if zipf < threshold and zipf > 0:
+                rare_words.append({
+                    "word": word,
+                    "lemma": lemma,
+                    "zipf": round(zipf, 2),
+                    "pos": pos
+                })
+    
+    # Nach Zipf sortieren (seltenste zuerst), Duplikate entfernen
+    seen_lemmas = set()
+    unique_rare = []
+    for w in sorted(rare_words, key=lambda x: x["zipf"]):
+        if w["lemma"].lower() not in seen_lemmas:
+            seen_lemmas.add(w["lemma"].lower())
+            unique_rare.append(w)
+        if len(unique_rare) >= max_words:
+            break
+    
+    return unique_rare
+
+
+
 # --- Dimensionen 0–1 --------------------------------------------------------
 
 
@@ -577,6 +719,7 @@ def compute_dimension_scores(
     direct_speech,
     lix,
     mp_feats,
+    freq_feats,
 ):
     """
     Errechnet normalisierte Dimensionen im Bereich [0,1].
@@ -648,14 +791,27 @@ def compute_dimension_scores(
 
     dims["cohesion"] = 0.5 * conn_norm + 0.5 * overlap_norm
 
-    # 5) Textschwierigkeit (Lesbarkeit) – höher = schwieriger
+        # 5) Textschwierigkeit (Lesbarkeit + Wortfrequenz) – höher = schwieriger
     if lix is not None:
         lix_value = lix.get("lix", 0.0)
         # 20 (leicht) – 60 (schwer)
-        difficulty_norm = clamp01((lix_value - 20.0) / (60.0 - 20.0))
-        dims["text_difficulty"] = difficulty_norm
+        lix_norm = clamp01((lix_value - 20.0) / (60.0 - 20.0))
     else:
-        dims["text_difficulty"] = 0.0
+        lix_norm = 0.0
+    
+    # Wortfrequenz-basierte Schwierigkeit (0 = leicht, 1 = schwer)
+    if freq_feats is not None:
+        freq_difficulty = freq_feats.get("difficulty_score", 0.0)
+        rare_share = freq_feats.get("rare_word_share", 0.0)
+        # Rare words boost: bis zu 0.2 extra wenn > 20% seltene Wörter
+        rare_boost = clamp01(rare_share / 0.2) * 0.2
+        freq_score = clamp01(freq_difficulty + rare_boost)
+    else:
+        freq_score = 0.0
+    
+    # Kombiniere LIX (40%) und Wortfrequenz (60%)
+    dims["text_difficulty"] = 0.4 * lix_norm + 0.6 * freq_score
+
 
     # 6) Register / Informalität (grob)
     pron_share = pronouns.get("share_pronouns", 0.0) if pronouns else 0.0
@@ -806,6 +962,9 @@ if __name__ == "__main__":
     punct_feats = punctuation_features(tagged_sentences)
     lix = lix_index(text, num_sentences, num_tokens)
     mp_feats = modal_particle_features(tagged_sentences)
+    freq_feats = word_frequency_features(tagged_sentences)  # ✅ NEU
+    rare_words = get_rare_words_list(tagged_sentences)       # ✅ NEU
+
 
     # 6) Dimensionen 0–1
     dim_scores = compute_dimension_scores(
@@ -824,6 +983,7 @@ if __name__ == "__main__":
         direct_speech=direct_speech,
         lix=lix,
         mp_feats=mp_feats,
+        freq_feats=freq_feats,
     )
 
     # --- Visualisierung -----------------------------------------------------
@@ -956,10 +1116,26 @@ if __name__ == "__main__":
         )
     print()
 
+        print()
+    print("=== Wortfrequenz (SUBTLEX-DE) ===")
+    print(f"Ø Zipf-Frequenz:        {freq_feats['avg_zipf']:.2f}")
+    print(f"Median Zipf:            {freq_feats['median_zipf']:.2f}")
+    print(f"Min/Max Zipf:           {freq_feats['min_zipf']:.2f} / {freq_feats['max_zipf']:.2f}")
+    print(f"Seltene Wörter (Zipf<3):{freq_feats['rare_word_count']} ({freq_feats['rare_word_share']:.1%})")
+    print(f"Sehr häufige (Zipf>5.5):{freq_feats['very_common_share']:.1%}")
+    print(f"Unbekannte Wörter:      {freq_feats['unknown_count']} ({freq_feats['unknown_share']:.1%})")
+    print(f"Schwierigkeitsscore:    {freq_feats['difficulty_score']:.3f}")
+    if rare_words:
+        print("Seltenste Wörter:")
+        for w in rare_words[:10]:
+            print(f"  - {w['word']} ({w['lemma']}, Zipf={w['zipf']})")
+
     print("=== Normalisierte Dimensionen (0–1) ===")
     for name, value in dim_scores.items():
         print(f"{name:22s}: {value:.3f}")
     print()
+
+    
 
     # --- CEFR-Schätzung -----------------------------------------------------
 
