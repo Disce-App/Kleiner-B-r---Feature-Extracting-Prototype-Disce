@@ -65,6 +65,15 @@ if st.button("Analysieren"):
             st.write(f"- Sehr häufige (Zipf>5.5): `{freq['very_common_share']:.1%}`")
             st.write(f"- Schwierigkeitsscore: `{freq['difficulty_score']:.3f}`")
 
+                        # Syntaktische Tiefe (spaCy)
+            st.subheader("Syntaktische Tiefe (spaCy)")
+            dep = result.get("dep_tree")
+            if dep and dep.get("num_sents_parsed", 0) > 0:
+                st.write(f"- Ø Baumtiefe: `{dep['avg_tree_depth']:.2f}`")
+                st.write(f"- Min/Max: `{dep['min_tree_depth']}` / `{dep['max_tree_depth']}`")
+            else:
+                st.write("- Keine Daten")
+
             # Seltene Wörter anzeigen
             rare_words = result.get("rare_words", [])
             if rare_words:
