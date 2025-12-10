@@ -655,6 +655,93 @@ def morphology_features(tagged_sentences):
         ) if total_case_marked > 0 else 0.0,
     }
 
+
+def verb_mood_features(tagged_sentences):
+    """
+    Erkennt Verb-Modi: Indikativ, Konjunktiv I, Konjunktiv II, Imperativ.
+    Nutzt spaCy's morphologische Analyse.
+    
+    Konjunktiv I: Subjunctive + Präsens (sei, habe, komme)
+    Konjunktiv II: Subjunctive + Präteritum (wäre, hätte, käme)
+    würde-Form: "würde" + Infinitiv (analytischer Konjunktiv II)
+    """
+    nlp = get_spacy_nlp()
+    
+    # Rekonstruiere Text
+    words = []
+    for sent in tagged_sentences:
+        for tok in sent:
+            if len(tok) >= 1:
+                words.append(tok[0])
+    text = " ".join(words)
+    
+    doc = nlp(text)
+    
+    mood_counts = {
+        "indicative": 0,
+        "subjunctive_1": 0,  # Konjunktiv I
+        "subjunctive_2": 0,  # Konjunktiv II
+        "imperative": 0,
+        "wuerde_form": 0,    # würde + Infinitiv
+    }
+    
+    total_finite_verbs = 0
+    
+    for i, token in enumerate(doc):
+        if token.pos_ not in {"VERB", "AUX"}:
+            continue
+            
+        verbform = token.morph.get("VerbForm")
+        
+        # Nur finite Verben zählen
+        if not verbform or "Fin" not in verbform:
+            continue
+            
+        total_finite_verbs += 1
+        
+        mood = token.morph.get("Mood")
+        tense = token.morph.get("Tense")
+        
+        if mood:
+            if "Imp" in mood:
+                mood_counts["imperative"] += 1
+            elif "Sub" in mood:
+                # Konjunktiv I vs II unterscheiden
+                if tense and "Past" in tense:
+                    mood_counts["subjunctive_2"] += 1
+                else:
+                    # Präsens oder unmarkiert → K1
+                    mood_counts["subjunctive_1"] += 1
+            elif "Ind" in mood:
+                mood_counts["indicative"] += 1
+        
+        # würde-Form erkennen (analytischer Konjunktiv II)
+        if token.lemma_.lower() == "werden" and mood and "Sub" in mood:
+            # Prüfe ob danach ein Infinitiv kommt
+            for j in range(i + 1, min(i + 5, len(doc))):
+                next_token = doc[j]
+                next_verbform = next_token.morph.get("VerbForm")
+                if next_verbform and "Inf" in next_verbform:
+                    mood_counts["wuerde_form"] += 1
+                    break
+    
+    # Anteile berechnen
+    mood_shares = {}
+    for m, count in mood_counts.items():
+        mood_shares[f"{m}_share"] = round(count / total_finite_verbs, 3) if total_finite_verbs > 0 else 0.0
+    
+    # Konjunktiv gesamt
+    total_subjunctive = mood_counts["subjunctive_1"] + mood_counts["subjunctive_2"] + mood_counts["wuerde_form"]
+    
+    return {
+        **mood_counts,
+        "total_finite_verbs": total_finite_verbs,
+        "total_subjunctive": total_subjunctive,
+        "subjunctive_share": round(total_subjunctive / total_finite_verbs, 3) if total_finite_verbs > 0 else 0.0,
+        **mood_shares,
+    }
+
+
 # --- Wortfrequenz-Features (SUBTLEX-DE via wordfreq) ------------------------
 
 def word_frequency_features(tagged_sentences):
