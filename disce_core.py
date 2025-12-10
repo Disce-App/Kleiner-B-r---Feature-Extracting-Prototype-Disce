@@ -41,18 +41,17 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     num_sentences = len(tagged_sentences)
     num_tokens = count_tokens(tagged_sentences)
     
-    # ========== DEBUG: Zeige echte POS-Tags ==========
-    print("\n=== DEBUG: Erste 15 POS-Tags ===")
-    count = 0
-    for sent in tagged_sentences:
-        for tok in sent:
-            print(tok)
-            count += 1
-            if count >= 15:
-                break
-        if count >= 15:
+# ✅ DEBUG: Erste 15 Tags für UI-Anzeige sammeln
+debug_tags = []
+for sent in tagged_sentences:
+    for tok in sent:
+        debug_tags.append(tok)
+        if len(debug_tags) >= 15:
             break
-    print("================================\n")
+    if len(debug_tags) >= 15:
+        break
+
+num_sentences = len(tagged_sentences)
     
     # ========== END DEBUG ============================
     
@@ -150,4 +149,5 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         "mattr": mattr,
         "morph_feats": morph_feats,
         "dep_tree": dep_tree,
+        "debug_tags": debug_tags,
     }
