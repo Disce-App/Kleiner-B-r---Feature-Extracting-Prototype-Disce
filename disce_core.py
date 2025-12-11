@@ -31,31 +31,19 @@ from features_viewer import (
     verb_mood_features,
     CONNECTOR_LIST,               # ✅ NEU
     MODAL_PARTICLES,              # ✅ NEU
+    mean,
 )
 
 def build_sentence_data(sentences, tagged_sentences, dep_tree):
-    """
-    Baut eine Liste von Satz-Records mit:
-    - index
-    - text
-    - length (Tokens)
-    - connector_count
-    - modal_particle_count
-    - tree_depth (falls von spaCy verfügbar)
-    """
-    # Satztexte aus SoMaJo-Tokens rekonstruieren
     sentence_texts = [
         " ".join(tok.text for tok in sent)
         for sent in sentences
     ]
 
-    # Baumtiefen pro Satz (können fehlen, z.B. wenn spaCy scheitert)
     tree_depths = None
     if dep_tree is not None:
         tree_depths = dep_tree.get("sent_tree_depths")
-        if tree_depths is not None and len(tree_depths) != len(sentences):
-            # Defensive: lieber ignorieren als falsch zu mappen
-            tree_depths = None
+        # Keine harte Längen-Gleichheit mehr erwarten
 
     sentence_data = []
     for i, (sent_tokens, tagged) in enumerate(zip(sentences, tagged_sentences)):
@@ -63,7 +51,6 @@ def build_sentence_data(sentences, tagged_sentences, dep_tree):
 
         connector_count = 0
         modal_particle_count = 0
-
         for token_tuple in tagged:
             if len(token_tuple) < 1:
                 continue
@@ -74,8 +61,10 @@ def build_sentence_data(sentences, tagged_sentences, dep_tree):
                 modal_particle_count += 1
 
         depth = None
-        if tree_depths is not None and i < len(tree_depths):
-            depth = tree_depths[i]
+        if tree_depths is not None:
+            max_idx = min(len(tree_depths), len(sentences))
+            if i < max_idx:
+                depth = tree_depths[i]
 
         sentence_data.append({
             "index": i,
@@ -152,6 +141,115 @@ def select_hotspots(sentence_data, max_per_type=3, max_total=10):
     )
 
     return hotspots[:max_total]
+
+
+def build_metrics_summary(
+    text,
+    num_sentences,
+    num_tokens,
+    lengths,
+    subclauses,
+    complex_nps,
+    vorfeld,
+    lex_feats,
+    coh_feats,
+    overlap,
+    lix,
+    freq_feats,
+    dim_scores,
+    cefr_score,
+    cefr_label,
+    dep_tree,
+    morph_feats,
+    mood_feats,
+    passive_feats,
+    neg_quant_feats,
+):
+    """
+    Baut ein kompaktes, LLM-freundliches Summary-Objekt der wichtigsten Metriken.
+    """
+    avg_sentence_length = mean(lengths) if lengths else 0.0
+    avg_subclauses = mean(subclauses) if subclauses else 0.0
+    avg_complex_nps = mean(complex_nps) if complex_nps else 0.0
+    avg_vorfeld = mean(vorfeld) if vorfeld else 0.0
+
+    dep_info = dep_tree or {}
+    passive_info = passive_feats or {}
+    negq_info = neg_quant_feats or {}
+    morph_info = morph_feats or {}
+    mood_info = mood_feats or {}
+    lex_info = lex_feats or {}
+    freq_info = freq_feats or {}
+    coh_info = coh_feats or {}
+    overlap_info = overlap or {}
+
+    summary = {
+        "cefr": {
+            "score": cefr_score,
+            "label": cefr_label,
+        },
+        "dims": dim_scores,  # already 0–1 normalized
+        "text_stats": {
+            "num_sentences": num_sentences,
+            "num_tokens": num_tokens,
+            "avg_sentence_length": avg_sentence_length,
+        },
+        "syntax": {
+            "avg_sentence_length": avg_sentence_length,
+            "avg_subclauses_per_sentence": avg_subclauses,
+            "avg_complex_nps_per_sentence": avg_complex_nps,
+            "avg_vorfeld_length": avg_vorfeld,
+            "avg_tree_depth": dep_info.get("avg_tree_depth", 0.0),
+            "passive_ratio": passive_info.get("passive_ratio", 0.0),
+            "oblique_case_ratio": morph_info.get("oblique_case_ratio", 0.0),
+        },
+        "lexicon": {
+            "ttr": lex_info.get("ttr", 0.0),
+            "lemma_ttr": lex_info.get("lemma_ttr", 0.0),
+            "content_word_share": lex_info.get("content_word_share", 0.0),
+            "avg_zipf": freq_info.get("avg_zipf", 0.0),
+            "rare_word_share": freq_info.get("rare_word_share", 0.0),
+            "difficulty_score": freq_info.get("difficulty_score", 0.0),
+        },
+        "discourse": {
+            "connector_density_per_100_tokens": coh_info.get(
+                "connector_density_per_100_tokens", 0.0
+            ),
+            "avg_overlap": overlap_info.get("avg_overlap", 0.0),
+        },
+        "style": {
+            "register_informality": dim_scores.get("register_informality", 0.0),
+            "written_formality": dim_scores.get("written_formality", 0.0),
+            "modal_particle_density_per_100_tokens": (
+                # aus mp_feats, derzeit nur im UI, optional später
+                # placeholder, wenn du willst
+                None
+            ),
+            "subjunctive_share": mood_info.get("subjunctive_share", 0.0),
+            "hedging_ratio": negq_info.get("hedging_ratio", 0.0),
+            "assertion_strength": negq_info.get("assertion_strength", 0.0),
+        },
+        "readability": {
+            "lix": lix.get("lix") if lix else None,
+            "share_long_words": lix.get("share_long_words") if lix else None,
+        },
+        "passive": {
+            "total_passive": passive_info.get("total_passive", 0),
+            "passive_ratio": passive_info.get("passive_ratio", 0.0),
+            "vorgangspassiv": passive_info.get("vorgangspassiv", 0),
+            "zustandspassiv": passive_info.get("zustandspassiv", 0),
+            "modalpassiv": passive_info.get("modalpassiv", 0),
+        },
+        "negation_quantifiers": {
+            "negation_per_100": negq_info.get("negation_per_100", 0.0),
+            "quantifier_per_100": negq_info.get("quantifier_per_100", 0.0),
+            "hedging_ratio": negq_info.get("hedging_ratio", 0.0),
+            "assertion_strength": negq_info.get("assertion_strength", 0.0),
+        },
+    }
+
+    return summary
+
 
 
 def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
@@ -265,6 +363,30 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     cefr_score = estimate_cefr_score_from_dims(dim_scores)
     cefr_label = estimate_cefr_label_from_dims(dim_scores)
 
+    # 9) Kompaktes Metrics-Summary für LLM / Reports ✅ NEU
+    metrics_summary = build_metrics_summary(
+        text=text,
+        num_sentences=num_sentences,
+        num_tokens=num_tokens,
+        lengths=lengths,
+        subclauses=subclauses,
+        complex_nps=complex_nps,
+        vorfeld=vorfeld,
+        lex_feats=lex_feats,
+        coh_feats=coh_feats,
+        overlap=overlap,
+        lix=lix,
+        freq_feats=freq_feats,
+        dim_scores=dim_scores,
+        cefr_score=cefr_score,
+        cefr_label=cefr_label,
+        dep_tree=dep_tree,
+        morph_feats=morph_feats,
+        mood_feats=mood_feats,
+        passive_feats=passive_feats,
+        neg_quant_feats=neg_quant_feats,
+    )
+
     return {
         "num_sentences": num_sentences,
         "num_tokens": num_tokens,
@@ -294,5 +416,6 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         "mood_feats": mood_feats, 
         "sentence_data": sentence_data, # ✅ NEU:
         "hotspots": hotspots,
+        "metrics_summary": metrics_summary,
     }
 
