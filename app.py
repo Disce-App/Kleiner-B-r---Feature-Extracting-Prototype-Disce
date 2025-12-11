@@ -105,7 +105,37 @@ if st.button("Analysieren"):
             else:
                 st.write("- Keine Daten")
 
-
+            # Negation & Quantoren
+            st.subheader("Negation & Quantoren")
+            nq = result.get("neg_quant_feats", {})
+            if nq:
+                col_neg, col_quant = st.columns(2)
+                with col_neg:
+                    st.write(f"**Negation:** `{nq['negation']}` ({nq['negation_per_100']:.1f} pro 100 Tokens)")
+                    st.write(f"**Restriktive:** `{nq['restrictive']}`")
+                with col_quant:
+                    st.write(f"**Universelle Q.:** `{nq['universal_quantifier']}`")
+                    st.write(f"**Partielle Q.:** `{nq['partial_quantifier']}`")
+                
+                st.write(f"- Hedging-Ratio: `{nq['hedging_ratio']:.1%}` (hoch = vorsichtig)")
+                st.write(f"- Assertion-Strength: `{nq['assertion_strength']:.1%}` (hoch = starke Behauptungen)")
+                
+                # Beispiele
+                examples = nq.get("examples", {})
+                has_examples = any(examples.get(k) for k in examples)
+                if has_examples:
+                    with st.expander("Beispiele"):
+                        for category, words in examples.items():
+                            if words:
+                                label = {
+                                    "negation": "Negation",
+                                    "universal_quantifier": "Universell",
+                                    "partial_quantifier": "Partiell",
+                                    "restrictive": "Restriktiv"
+                                }.get(category, category)
+                                st.write(f"**{label}:** {', '.join(words)}")
+            else:
+                st.write("- Keine Daten")
 
             # Verb-Modus (Konjunktiv)
             st.subheader("Verb-Modus")
@@ -184,6 +214,16 @@ if st.button("Analysieren"):
                     st.json(mood)
                 else:
                     st.write("_Keine Modus-Daten._")
+
+                st.markdown("**Negation & Quantoren**")
+                nq = result.get("neg_quant_feats", {})
+                if nq:
+                    # Beispiele für JSON-Anzeige entfernen (zu lang)
+                    nq_display = {k: v for k, v in nq.items() if k != "examples"}
+                    st.json(nq_display)
+                else:
+                    st.write("_Keine Daten._")
+
 
 
 
