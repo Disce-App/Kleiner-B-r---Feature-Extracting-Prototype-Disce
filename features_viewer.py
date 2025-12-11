@@ -1111,6 +1111,7 @@ def dependency_tree_features(text: str):
     Berechnet Baumtiefen-Features auf Basis des Dependency-Parsers.
     - Für jeden Satz: maximale Tiefe vom Token zur Wurzel
     - Liefert Aggregatwerte über alle Sätze
+    - NEU: gibt auch die Liste der Tiefen pro Satz zurück (sent_tree_depths)
     """
     nlp = get_spacy_nlp()
     doc = nlp(text)
@@ -1136,6 +1137,7 @@ def dependency_tree_features(text: str):
             "min_tree_depth": 0,
             "max_tree_depth": 0,
             "num_sents_parsed": 0,
+            "sent_tree_depths": [],
         }
 
     return {
@@ -1143,7 +1145,9 @@ def dependency_tree_features(text: str):
         "min_tree_depth": min(sent_depths),
         "max_tree_depth": max(sent_depths),
         "num_sents_parsed": len(sent_depths),
+        "sent_tree_depths": sent_depths,  # ✅ NEU
     }
+
 
 
 # --- Dimensionen 0–1 --------------------------------------------------------
