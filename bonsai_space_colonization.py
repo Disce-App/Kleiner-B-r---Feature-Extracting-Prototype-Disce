@@ -84,41 +84,63 @@ class BonsaiParams:
 def _params_from_metrics(metrics: Dict) -> BonsaiParams:
     """
     Erzeugt BonsaiParams heuristisch aus Disce-Metriken (metrics_summary oder disce_metrics).
-    Alles sehr vorsichtig skaliert, damit der Baum nie 'kaputt' geht.
+    Ziel: Sofort ein "erwachsener" Baum, dessen Größe/Dichte mit der Textqualität zunimmt.
     """
-    # Fallbacks
     dims = metrics.get("dims", {})
+    cefr = metrics.get("cefr", {})
+
+    # --- Basis-Metriken aus Kleiner Bär ---
     text_difficulty = float(dims.get("text_difficulty", 0.5))
     synt_complexity = float(dims.get("syntactic_complexity", 0.4))
     cohesion = float(dims.get("cohesion", 0.4))
     register_informality = float(dims.get("register_informality", 0.2))
 
-    # Krone: höher/schlanker bei höherer Komplexität
-    crown_height = _lerp(1.0, 1.5, synt_complexity)
-    crown_radius = _lerp(0.8, 1.2, cohesion)  # mehr Kohäsion → leicht breiter
+    # CEFR-Score 1..6 -> 0..1
+    raw_cefr_score = float(cefr.get("score", 3.0))
+    cefr_norm = max(0.0, min(1.0, (raw_cefr_score - 2.0) / 3.5))
+    # Zusätzliche "Reife" aus Schwierigkeit & Komplexität
+    structure_norm = (text_difficulty + synt_complexity) / 2.0
 
-    # Anzahl Attraktoren ~ "Komplexität" & "Schwierigkeit"
-    num_attractors = int(300 + 300 * (text_difficulty))
+    # Gesamtreife, nie unter 0.4, damit es nie nur ein Sprössling wird
+    maturity = max(0.4, min(1.0, 0.5 * cefr_norm + 0.5 * structure_norm))
 
-    # Stammhöhe: etwas höher bei schwierigerem / formellerem Text
-    trunk_height = _lerp(0.3, 0.5, text_difficulty)
+    # --- Kronengeometrie ---
+    # Etwas größer bei höherer Reife, aber immer "bonsai-haft"
+    crown_height = _lerp(1.1, 1.8, maturity)         # 1.1–1.8
+    crown_radius = _lerp(0.9, 1.4, cohesion) * _lerp(0.9, 1.1, maturity)
 
-    # lean_factor: informeller = leicht schiefer Baum
-    lean_factor = _lerp(0.0, 0.5, register_informality)
+    # --- Anzahl Attraktoren (Strukturdichte) ---
+    # Mehr Attraktoren = dichtere, verzweigte Krone
+    # Untergrenze relativ hoch, damit immer ein "voller" Baum entsteht
+    base_attractors = 350
+    extra_attractors = int(450 * maturity)           # bis ca. 800 gesamt
+    num_attractors = base_attractors + extra_attractors
 
-    # Schrittweite: etwas größer bei höherer syntaktischer Komplexität
-    branch_step = _lerp(0.025, 0.04, synt_complexity)
+    # --- Stammhöhe ---
+    # Etwas höher bei schwierigerem / reiferem Text, aber nicht riesig
+    trunk_height = _lerp(0.35, 0.6, maturity)
 
-    # Iterationen: moderat erhöhen mit text_difficulty
-    max_iterations = int(160 + 80 * text_difficulty)
+    # --- Lean: informeller = stärker geneigter Baum ---
+    lean_factor = _lerp(0.0, 0.6, register_informality)
+
+    # --- Wachstumsschritte & Iterationen ---
+    # Schrittweite etwas größer, damit die Krone schnell "gefüllt" wird
+    branch_step = _lerp(0.03, 0.06, maturity)        # 0.03–0.06
+    # Mehr Iterationen bei höherer Reife
+    max_iterations = int(_lerp(220, 380, maturity))  # 220–380
+
+    # Einfluss- & Killradien etwas großzügiger wählen,
+    # damit mehr Attraktoren tatsächlich "erreicht" werden
+    influence_radius = 0.30
+    kill_radius = 0.07
 
     return BonsaiParams(
         crown_radius=crown_radius,
         crown_height=crown_height,
         trunk_height=trunk_height,
         num_attractors=num_attractors,
-        influence_radius=0.25,
-        kill_radius=0.07,
+        influence_radius=influence_radius,
+        kill_radius=kill_radius,
         branch_step=branch_step,
         max_iterations=max_iterations,
         lean_factor=lean_factor,
