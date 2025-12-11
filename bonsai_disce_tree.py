@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import math
 import random
@@ -93,7 +93,7 @@ def options_from_dims(dims: Dict) -> TreeOptions:
     base_width = 4.0 + grammar * 4.0 + diff * 4.0
     width = min(base_width, 12.0)
 
-    # Winkelbereich: ähnlich wie dein JS-Mapping
+    # Winkelbereich
     # Kohäsion hoch -> enger Winkel
     min_angle = 10.0 + (1.0 - coh) * 5.0      # 10–15
     max_angle = 20.0 + (1.0 - coh) * 10.0     # 20–30
@@ -102,7 +102,7 @@ def options_from_dims(dims: Dict) -> TreeOptions:
     min_angle = min(min_angle, 18.0)
     max_angle = min(max_angle, 35.0)
 
-    # Längenverkürzung: 0.68–0.82, wie bei dir
+    # Längenverkürzung: 0.68–0.82
     length_dec = 0.68 + synt * 0.14
 
     # Breitenverkürzung: 0.82–0.93, je nach Kohäsion
@@ -113,7 +113,6 @@ def options_from_dims(dims: Dict) -> TreeOptions:
     angle_asym = 0.05 + reg_inf * 0.20
 
     # Farbe grob an Schwierigkeitsgrad koppeln (dunkler/grüner)
-    # hier stark vereinfacht
     color_r = 40.0
     color_g = 90.0 + diff * 50.0
     color_b = 30.0 + diff * 20.0
@@ -165,7 +164,7 @@ def expand_lsystem(axiom: str, iterations: int) -> str:
 # Turtle-Renderer für X/F/+/−/[/]/@
 # ---------------------------------------------------
 
-def _draw_tree(lsys: str, opts: TreeOptions) -> plt.Figure:
+def _draw_tree(lsys: str, opts: TreeOptions, dims: Dict) -> plt.Figure:
     # Turtle-State
     @dataclass
     class State:
@@ -173,6 +172,17 @@ def _draw_tree(lsys: str, opts: TreeOptions) -> plt.Figure:
         y: float
         angle_deg: float
         opts: TreeOptions
+        last_seg_idx: Optional[int]
+
+    @dataclass
+    class Segment:
+        start_x: float
+        start_y: float
+        end_x: float
+        end_y: float
+        depth: int
+        is_x: bool
+        has_child: bool = False
 
     # Start unten Mitte, nach oben
     x, y = 0.0, 0.0
@@ -182,6 +192,10 @@ def _draw_tree(lsys: str, opts: TreeOptions) -> plt.Figure:
     # Für Scaling
     min_x = max_x = x
     min_y = max_y = y
+
+    # Alle Segmente sammeln, um hinterher Endäste zu kennen
+    segments: List[Segment] = []
+    last_seg_idx: Optional[int] = None
 
     fig, ax = plt.subplots(figsize=(4, 5), dpi=150)
 
@@ -217,17 +231,20 @@ def _draw_tree(lsys: str, opts: TreeOptions) -> plt.Figure:
                 solid_capstyle="round",
             )
 
-            # einfache Blätter an X-Segmenten, wenn Baum tiefer
-            if ch == "X" and opts.depth >= 3:
-                leaf_size = 5.0 * (1.0 + diff_factor_from_opts(opts))
-                ax.scatter(
-                    [new_x],
-                    [new_y],
-                    s=leaf_size,
-                    c=[[0.2, 0.6, 0.2, 0.8]],
-                    marker="o",
-                    linewidths=0,
-                )
+            # Segment speichern
+            seg = Segment(
+                start_x=x,
+                start_y=y,
+                end_x=new_x,
+                end_y=new_y,
+                depth=opts.depth,
+                is_x=(ch == "X"),
+            )
+            # Elternsegment als "hat Kind" markieren
+            if last_seg_idx is not None:
+                segments[last_seg_idx].has_child = True
+            segments.append(seg)
+            last_seg_idx = len(segments) - 1
 
             x, y = new_x, new_y
             min_x, max_x = min(min_x, x), max(max_x, x)
@@ -245,7 +262,7 @@ def _draw_tree(lsys: str, opts: TreeOptions) -> plt.Figure:
 
         elif ch == "[":
             # State pushen
-            state_stack.append(State(x, y, angle_deg, replace(opts)))
+            state_stack.append(State(x, y, angle_deg, replace(opts), last_seg_idx))
             # Tiefe +1
             opts.depth += 1
 
@@ -253,7 +270,13 @@ def _draw_tree(lsys: str, opts: TreeOptions) -> plt.Figure:
             # State poppen
             if state_stack:
                 s = state_stack.pop()
-                x, y, angle_deg, opts = s.x, s.y, s.angle_deg, s.opts
+                x, y, angle_deg, opts, last_seg_idx = (
+                    s.x,
+                    s.y,
+                    s.angle_deg,
+                    s.opts,
+                    s.last_seg_idx,
+                )
 
         elif ch == "@":
             # entspricht JS: Länge, Breite, Farbe reduzieren, Tiefe erhöhen
@@ -268,6 +291,9 @@ def _draw_tree(lsys: str, opts: TreeOptions) -> plt.Figure:
             # andere Zeichen ignorieren
             continue
 
+    # Blätter basierend auf Endästen zeichnen
+    _draw_leaves(ax, segments, dims, rng)
+
     # Bodenlinie
     ax.plot([min_x - 0.3, max_x + 0.3], [0.0, 0.0], color="#444444", linewidth=1.0)
 
@@ -279,6 +305,90 @@ def _draw_tree(lsys: str, opts: TreeOptions) -> plt.Figure:
     ax.axis("off")
     fig.tight_layout(pad=0.1)
     return fig
+
+
+def _draw_leaves(ax, segments, dims: Dict, rng: random.Random) -> None:
+    """
+    Zeichnet Blatt-Cluster an Endästen.
+
+    Heuristik:
+      - Blätter nur an Segmenten ohne Kinder (has_child == False)
+      - Mindesttiefe, damit nicht am Stammende schon Laub hängt
+      - Blattdichte ~ lexical_diversity
+      - Ordnung/Cluster-Spread ~ cohesion
+      - Blattgröße/Farbnuance ~ text_difficulty
+    """
+    if not segments:
+        return
+
+    lex = _clamp(_safe_dim(dims, "lexical_diversity", 0.7))
+    coh = _clamp(_safe_dim(dims, "cohesion", 0.5))
+    diff = _clamp(_safe_dim(dims, "text_difficulty", 0.5))
+
+    # Nur "hohe" Äste: ab Tiefe 3
+    min_leaf_depth = 3
+
+    leaf_segments = [
+        s for s in segments
+        if not s.has_child and s.depth >= min_leaf_depth
+    ]
+
+    if not leaf_segments:
+        return
+
+    # Basis-Blattanzahl pro Endast, skaliert mit lexical_diversity
+    base_leaves_per_segment = 2 + int(lex * 3)  # 2–5
+
+    # Begrenze Gesamtanzahl Blätter, damit das Bild nicht überladen wird
+    max_total_leaves = 280
+    est_total = len(leaf_segments) * base_leaves_per_segment
+    if est_total <= 0:
+        return
+    density_scale = min(1.0, max_total_leaves / est_total)
+
+    # Kohäsion: hoher Wert -> engerer Spread um die Ast-Richtung
+    # 25–50 Grad
+    spread_deg = 25.0 + (1.0 - coh) * 25.0
+    spread = math.radians(spread_deg)
+
+    # Blattgröße: schwierigere Texte -> etwas kleinere Blätter
+    size_scale = 0.7 + (1.0 - diff) * 0.6  # 0.7–1.3
+
+    for seg in leaf_segments:
+        dx = seg.end_x - seg.start_x
+        dy = seg.end_y - seg.start_y
+        base_theta = math.atan2(dy, dx)
+        seg_len = max(1e-3, math.hypot(dx, dy))
+
+        # Blatt-Cluster radial um das Astende herum
+        r_min = 0.2 * seg_len
+        r_max = 0.6 * seg_len
+
+        n_leaves = max(1, int(round(base_leaves_per_segment * density_scale)))
+
+        for _ in range(n_leaves):
+            theta = base_theta + rng.uniform(-spread, spread)
+            r = rng.uniform(r_min, r_max)
+            x_leaf = seg.end_x + math.cos(theta) * r
+            y_leaf = seg.end_y + math.sin(theta) * r
+
+            # Grünnuance leicht mit lexical_diversity variieren
+            leaf_color = (
+                0.18,
+                0.5 + 0.3 * lex,   # 0.5–0.8
+                0.22,
+                0.85,
+            )
+            leaf_size = 10.0 * size_scale
+
+            ax.scatter(
+                [x_leaf],
+                [y_leaf],
+                s=leaf_size,
+                c=[leaf_color],
+                marker="o",
+                linewidths=0,
+            )
 
 
 def diff_factor_from_opts(opts: TreeOptions) -> float:
@@ -298,5 +408,5 @@ def generate_disce_bonsai_figure(result: Dict) -> plt.Figure:
     dims = result.get("dims", {}) or {}
     opts = options_from_dims(dims)
     lsys = expand_lsystem("X", opts.iterations)
-    fig = _draw_tree(lsys, opts)
+    fig = _draw_tree(lsys, opts, dims)
     return fig
