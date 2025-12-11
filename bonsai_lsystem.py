@@ -311,6 +311,12 @@ def generate_bonsai_figure(metrics_or_dims: Dict | None = None):
     }
 
     s = build_lsystem_string(axiom, rules, params.iterations)
+    
+    # Debug-Ausgabe in die Konsole
+    print("Bonsai debug:",
+          "iterations=", params.iterations,
+          "len_string=", len(s))
+    
     fig = _draw_bonsai_from_string(s, params)
     return fig
 
