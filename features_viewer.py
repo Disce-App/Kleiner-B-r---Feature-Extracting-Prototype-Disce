@@ -324,6 +324,129 @@ def passive_voice_features(tagged_sentences):
         "passive_instances": passive_instances[:10],  # Max 10 Beispiele
     }
 
+# --- Negation --------------------------------------------------------------------------------------------
+
+def negation_quantifier_features(tagged_sentences):
+    """
+    Erkennt Negation und Quantoren für Argumentationsstil-Analyse.
+    
+    - Negation: nicht, kein, niemand, niemals, weder, ohne
+    - Universelle Quantoren: alle, jeder, immer, stets (starke Behauptungen)
+    - Partielle Quantoren: manche, einige, oft, manchmal (Hedging)
+    - Restriktive: nur, lediglich, bloß, ausschließlich
+    """
+    nlp = get_spacy_nlp()
+    
+    # Rekonstruiere Text
+    words = []
+    for sent in tagged_sentences:
+        for tok in sent:
+            if len(tok) >= 1:
+                words.append(tok[0])
+    text = " ".join(words)
+    
+    doc = nlp(text)
+    
+    # Wortlisten (Lemmas)
+    negation_words = {
+        "nicht", "kein", "keine", "keiner", "keines", "keinem", "keinen",
+        "niemand", "niemals", "nie", "nirgends", "nirgendwo",
+        "weder", "ohne", "nichts", "kaum"
+    }
+    
+    universal_quantifiers = {
+        "alle", "aller", "allem", "allen", "alles",
+        "jeder", "jede", "jedes", "jedem", "jeden",
+        "immer", "stets", "sämtlich", "sämtliche", "sämtlicher",
+        "ganz", "ganze", "ganzer", "ganzen", "ganzem",
+        "vollständig", "völlig", "komplett", "total",
+        "überall", "durchweg", "ausnahmslos"
+    }
+    
+    partial_quantifiers = {
+        "manche", "mancher", "manches", "manchem", "manchen",
+        "einige", "einiger", "einiges", "einigem", "einigen",
+        "manche", "mehrere", "verschiedene",
+        "oft", "häufig", "manchmal", "gelegentlich", "bisweilen", "zuweilen",
+        "meistens", "meist", "überwiegend", "vorwiegend",
+        "teilweise", "teils", "gewöhnlich", "normalerweise",
+        "viele", "vieler", "vieles", "vielem", "vielen",
+        "wenige", "weniger", "weniges", "wenigem", "wenigen",
+        "etwas", "etwa", "ungefähr", "circa", "fast", "nahezu", "beinahe"
+    }
+    
+    restrictive_words = {
+        "nur", "lediglich", "bloß", "bloss", "ausschließlich", "allein",
+        "einzig", "höchstens", "mindestens", "wenigstens", "zumindest",
+        "erst", "schon", "bereits", "noch"
+    }
+    
+    # Zähler
+    counts = {
+        "negation": 0,
+        "universal_quantifier": 0,
+        "partial_quantifier": 0,
+        "restrictive": 0,
+    }
+    
+    # Beispiele sammeln
+    examples = {
+        "negation": [],
+        "universal_quantifier": [],
+        "partial_quantifier": [],
+        "restrictive": [],
+    }
+    
+    total_tokens = len([t for t in doc if not t.is_punct and not t.is_space])
+    
+    for token in doc:
+        token_lower = token.text.lower()
+        lemma_lower = token.lemma_.lower()
+        
+        # Prüfe gegen beide (Text und Lemma)
+        check_forms = {token_lower, lemma_lower}
+        
+        if check_forms & negation_words:
+            counts["negation"] += 1
+            if len(examples["negation"]) < 5:
+                examples["negation"].append(token.text)
+        elif check_forms & universal_quantifiers:
+            counts["universal_quantifier"] += 1
+            if len(examples["universal_quantifier"]) < 5:
+                examples["universal_quantifier"].append(token.text)
+        elif check_forms & partial_quantifiers:
+            counts["partial_quantifier"] += 1
+            if len(examples["partial_quantifier"]) < 5:
+                examples["partial_quantifier"].append(token.text)
+        elif check_forms & restrictive_words:
+            counts["restrictive"] += 1
+            if len(examples["restrictive"]) < 5:
+                examples["restrictive"].append(token.text)
+    
+    # Abgeleitete Metriken
+    total_quantifiers = counts["universal_quantifier"] + counts["partial_quantifier"]
+    
+    # Hedging-Ratio: partielle / (partielle + universelle)
+    hedging_ratio = 0.0
+    if total_quantifiers > 0:
+        hedging_ratio = round(counts["partial_quantifier"] / total_quantifiers, 3)
+    
+    # Assertion-Strength: universelle / (partielle + universelle)
+    assertion_strength = 0.0
+    if total_quantifiers > 0:
+        assertion_strength = round(counts["universal_quantifier"] / total_quantifiers, 3)
+    
+    return {
+        **counts,
+        "total_quantifiers": total_quantifiers,
+        "total_tokens": total_tokens,
+        "negation_per_100": round(counts["negation"] / total_tokens * 100, 2) if total_tokens > 0 else 0.0,
+        "quantifier_per_100": round(total_quantifiers / total_tokens * 100, 2) if total_tokens > 0 else 0.0,
+        "hedging_ratio": hedging_ratio,
+        "assertion_strength": assertion_strength,
+        "examples": examples,
+    }
+
 
 
 # --- Lexik & Kohäsion -------------------------------------------------------
