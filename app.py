@@ -185,11 +185,13 @@ if st.button("Analysieren"):
             "nur diagnostisch berechnet, fließt aber **noch nicht** in den CEFR-Score ein."
         )
 
-        # 🌳 Bonsai-Visualisierung (Space Colonization)
+        # 🌳 Bonsai-Visualisierung (Prototype)
         st.subheader("Bonsai-Visualisierung (Prototype)")
-        # Wir brauchen nur die Dims
-        dims_for_bonsai = result.get("dims", {})
-        fig = generate_bonsai_figure({"dims": dims_for_bonsai})
+
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        ax.plot([0, 1], [0, 1])
+        ax.set_title("Testplot")
         st.pyplot(fig)
 
 
