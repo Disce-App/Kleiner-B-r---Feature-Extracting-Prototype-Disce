@@ -220,6 +220,112 @@ def moving_average_ttr(tokens, window_size=50):
     }
 
 
+# --- Passiv -----------------------------------------------------------------
+
+def passive_voice_features(tagged_sentences):
+    """
+    Erkennt Passiv-Konstruktionen im Deutschen regelbasiert.
+    
+    Vorgangspassiv: werden + Partizip II ("wird geschrieben")
+    Zustandspassiv: sein + Partizip II ("ist geschrieben")
+    Modalpassiv: Modalverb + Partizip II + werden ("muss geschrieben werden")
+    """
+    nlp = get_spacy_nlp()
+    
+    # Rekonstruiere Text
+    words = []
+    for sent in tagged_sentences:
+        for tok in sent:
+            if len(tok) >= 1:
+                words.append(tok[0])
+    text = " ".join(words)
+    
+    doc = nlp(text)
+    
+    passive_counts = {
+        "vorgangspassiv": 0,      # werden + PP
+        "zustandspassiv": 0,      # sein + PP
+        "modalpassiv": 0,         # Modalverb + PP + werden
+    }
+    
+    passive_instances = []  # Für Debug/Anzeige
+    total_clauses = 0       # Geschätzte Anzahl an Teilsätzen
+    
+    # Hilfslexikon
+    werden_forms = {"werden", "wird", "wirst", "werdet", "wurde", "wurdest", 
+                    "wurden", "wurdet", "werde", "würde", "würdest", "würden", "würdet"}
+    sein_forms = {"sein", "ist", "bist", "sind", "seid", "war", "warst", 
+                  "waren", "wart", "sei", "seist", "seien", "seid", "wäre", 
+                  "wärst", "wären", "wärt"}
+    modal_verbs = {"können", "müssen", "sollen", "wollen", "dürfen", "mögen",
+                   "kann", "muss", "soll", "will", "darf", "mag",
+                   "kannst", "musst", "sollst", "willst", "darfst", "magst",
+                   "könnt", "müsst", "sollt", "wollt", "dürft", "mögt",
+                   "konnte", "musste", "sollte", "wollte", "durfte", "mochte",
+                   "konnten", "mussten", "sollten", "wollten", "durften", "mochten"}
+    
+    # Zähle Teilsätze (grob: finite Verben)
+    for token in doc:
+        verbform = token.morph.get("VerbForm")
+        if verbform and "Fin" in verbform:
+            total_clauses += 1
+    
+    # Suche nach Passiv-Mustern
+    for sent in doc.sents:
+        tokens = list(sent)
+        
+        for i, token in enumerate(tokens):
+            token_lower = token.text.lower()
+            
+            # Partizip II finden
+            verbform = token.morph.get("VerbForm")
+            is_participle = verbform and "Part" in verbform
+            
+            if not is_participle:
+                continue
+            
+            # Suche im Kontext (5 Tokens vorher und nachher) nach Hilfsverben
+            context_start = max(0, i - 5)
+            context_end = min(len(tokens), i + 5)
+            context_tokens = [t.text.lower() for t in tokens[context_start:context_end]]
+            context_lemmas = [t.lemma_.lower() for t in tokens[context_start:context_end]]
+            
+            # Vorgangspassiv: werden + Partizip II
+            has_werden = any(t in werden_forms for t in context_tokens)
+            # Zustandspassiv: sein + Partizip II (aber nicht Perfekt Aktiv!)
+            has_sein = any(t in sein_forms for t in context_tokens)
+            # Modalpassiv: Modalverb im Kontext
+            has_modal = any(t in modal_verbs for t in context_tokens)
+            
+            if has_werden and has_modal:
+                passive_counts["modalpassiv"] += 1
+                passive_instances.append(f"Modalpassiv: ...{token.text}...")
+            elif has_werden:
+                passive_counts["vorgangspassiv"] += 1
+                passive_instances.append(f"Vorgangspassiv: ...{token.text}...")
+            elif has_sein and token.lemma_.lower() not in {"sein", "haben", "werden"}:
+                # Zustandspassiv nur wenn kein Hilfsverb selbst
+                # Heuristik: Wenn "worden" dabei ist, ist es Perfekt Passiv (→ Vorgangspassiv)
+                if "worden" in context_tokens:
+                    passive_counts["vorgangspassiv"] += 1
+                    passive_instances.append(f"Perfekt Vorgangspassiv: ...{token.text}...")
+                else:
+                    passive_counts["zustandspassiv"] += 1
+                    passive_instances.append(f"Zustandspassiv: ...{token.text}...")
+    
+    # Gesamtzahlen
+    total_passive = sum(passive_counts.values())
+    
+    return {
+        **passive_counts,
+        "total_passive": total_passive,
+        "total_clauses": total_clauses,
+        "passive_ratio": round(total_passive / total_clauses, 3) if total_clauses > 0 else 0.0,
+        "passive_instances": passive_instances[:10],  # Max 10 Beispiele
+    }
+
+
+
 # --- Lexik & Kohäsion -------------------------------------------------------
 
 
