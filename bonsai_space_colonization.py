@@ -125,7 +125,7 @@ def _params_from_metrics(metrics: Dict) -> BonsaiParams:
 
     # --- Wachstumsschritte & Iterationen ---
     # Schrittweite etwas größer, damit die Krone schnell "gefüllt" wird
-    branch_step = _lerp(0.03, 0.06, maturity)        # 0.03–0.06
+    branch_step = _lerp(0.035, 0.08, maturity)        # 0.03–0.06
     # Mehr Iterationen bei höherer Reife
     max_iterations = int(_lerp(220, 380, maturity))  # 220–380
 
@@ -185,14 +185,14 @@ def _initialize_trunk(attractors: List[Attractor], params: BonsaiParams) -> List
     """
     Lässt den Stamm von (0,0) nach oben wachsen, bis er in den Einflussbereich
     der Krone kommt (oder die Kronenhöhe überschritten ist).
-    Dadurch haben die ersten Attraktoren überhaupt eine Chance, Äste anzuziehen.
+    Anschließend werden 3–4 Hauptäste an der Stammspitze erzeugt,
+    damit der Baum sofort eine erkennbare Krone ausbilden kann.
     """
     branches: List[Branch] = [
         Branch(x=0.0, y=0.0, parent_index=None, direction_x=0.0, direction_y=1.0, depth=0)
     ]
 
-    # Solange der letzte Stamm-Branch noch "weit weg" von allen Attraktoren ist,
-    # wächst er Schritt für Schritt nach oben.
+    # 1) Stamm nach oben wachsen lassen
     max_trunk_iterations = 200  # Sicherheitsgrenze
     for _ in range(max_trunk_iterations):
         last = branches[-1]
@@ -222,6 +222,33 @@ def _initialize_trunk(attractors: List[Attractor], params: BonsaiParams) -> List
             depth=last.depth + 1,
         )
         branches.append(new_branch)
+
+    # 2) Gerüst-Äste an der Stammspitze hinzufügen
+    top_index = len(branches) - 1
+    top = branches[top_index]
+
+    # 3–4 Hauptäste mit unterschiedlichen Winkeln (in Radiant, von der Vertikalen aus gedacht)
+    primary_angles = [-0.7, -0.3, 0.3, 0.7]  # ~±17° bis ±40°
+    scaffold_length = params.branch_step * 6  # etwas länger als ein normaler Schritt
+
+    for ang in primary_angles:
+        # Richtung relativ zur y-Achse nach oben
+        dx = math.sin(ang)
+        dy = math.cos(ang)  # cos(0)=1 -> nach oben
+
+        new_x = top.x + dx * scaffold_length
+        new_y = top.y + dy * scaffold_length
+
+        branches.append(
+            Branch(
+                x=new_x,
+                y=new_y,
+                parent_index=top_index,
+                direction_x=dx,
+                direction_y=dy,
+                depth=branches[top_index].depth + 1,
+            )
+        )
 
     return branches
 
@@ -365,7 +392,7 @@ def _draw_bonsai(branches: List[Branch], params: BonsaiParams) -> plt.Figure:
     # Achsen-Einstellungen: Bonsai im Fokus
     ax.set_aspect("equal", "box")
     ax.set_xlim(-1.3, 1.3)
-    ax.set_ylim(-0.2, params.trunk_height + params.crown_height + 0.2)
+    ax.set_ylim(-0.2, (params.trunk_height + params.crown_height) * 1.1 + 0.2)
     ax.axis("off")
 
     fig.tight_layout(pad=0.1)
