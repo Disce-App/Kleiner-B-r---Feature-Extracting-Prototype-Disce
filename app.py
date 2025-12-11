@@ -1,6 +1,6 @@
 import streamlit as st
 from disce_core import analyze_text_for_ui
-from bonsai_space_colonization import generate_bonsai_figure
+from bonsai_lsystem import generate_bonsai_figure
 
 st.set_page_config(page_title="Disce CEFR-Demo", layout="wide")
 st.title("Disce – CEFR-Demo für Schreibkompetenz")
@@ -186,11 +186,13 @@ if st.button("Analysieren"):
         )
 
         # 🌳 Bonsai-Visualisierung (Space Colonization)
-        st.subheader("Bonsai-Visualisierung (Prototype)")
-        # Wenn du später metrics_summary hast, nimm das stattdessen
-        metrics_for_bonsai = result.get("metrics_summary", {"dims": result.get("dims", {})})
-        fig = generate_bonsai_figure(metrics_for_bonsai)
-        st.pyplot(fig)
+       st.subheader("Bonsai-Visualisierung (Prototype)")
+
+       # Wir brauchen nur die Dims
+       dims_for_bonsai = result.get("dims", {})
+       fig = generate_bonsai_figure({"dims": dims_for_bonsai})
+       st.pyplot(fig)
+
 
         
         # 🔧 DEBUG-BEREICH (NUR wenn debug_mode UND result existiert)
