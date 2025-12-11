@@ -303,6 +303,17 @@ if st.button("Analysieren"):
                 st.write(f"- 3.-Person-Referenzen: `{pron['third_person_refs']}`")
                 st.json(pron["by_person"])
 
+
+                st.markdown("**Hotspots (Satz-Auswahl)**")
+                hotspots = result.get("hotspots", [])
+                if hotspots:
+                    for h in hotspots:
+                        st.write(f"- Satz {h['sentence_index']}: {h['sentence_text']}")
+                        st.write(f"  Gründe: {', '.join(h['reasons'])}")
+                else:
+                    st.write("_Keine Hotspots gefunden._")
+
+
             with tab4:
                 st.markdown("**Satztypen**")
                 st.json(result["sent_types"])
