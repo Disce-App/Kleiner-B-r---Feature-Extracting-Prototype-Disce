@@ -22,6 +22,7 @@ from features_viewer import (
     word_frequency_features,      # ✅ NEU
     get_rare_words_list,          # ✅ NEU
     passive_voice_features,
+    negation_quantifier_features,
     dependency_tree_features,
     morphology_features, 
     compute_dimension_scores,
@@ -108,6 +109,9 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     # 6d) Passiv-Erkennung ✅ NEU
     passive_feats = passive_voice_features(tagged_sentences)
 
+    # 6e) Negation & Quantoren ✅ NEU
+    neg_quant_feats = negation_quantifier_features(tagged_sentences)
+
     # 7) Dependency-Baumtiefe (spaCy) ✅ NEU
     dep_tree = dependency_tree_features(text)
 
@@ -156,6 +160,7 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         "freq_feats": freq_feats,      # ✅ NEU
         "rare_words": rare_words,       # ✅ NEU
         "passive_feats": passive_feats,
+        "neg_quant_feats": neg_quant_feats,
         "mattr": mattr,
         "morph_feats": morph_feats,
         "dep_tree": dep_tree,
