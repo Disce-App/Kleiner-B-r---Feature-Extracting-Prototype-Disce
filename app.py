@@ -1,6 +1,12 @@
 import streamlit as st
 from disce_core import analyze_text_for_ui
 
+from bonsai_space_colonization import generate_bonsai_figure
+
+fig = generate_bonsai_figure(result.get("metrics_summary", {}))
+st.subheader("Bonsai-Visualisierung (Prototype)")
+st.pyplot(fig)
+
 st.set_page_config(page_title="Disce CEFR-Demo", layout="wide")
 
 st.title("Disce – CEFR-Demo für Schreibkompetenz")
