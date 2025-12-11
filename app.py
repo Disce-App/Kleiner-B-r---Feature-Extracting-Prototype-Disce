@@ -1,6 +1,6 @@
 import streamlit as st
 from disce_core import analyze_text_for_ui
-from bonsai_lsystem import generate_bonsai_figure
+from bonsai_disce_tree import generate_disce_bonsai_figure
 
 st.set_page_config(page_title="Disce CEFR-Demo", layout="wide")
 st.title("Disce – CEFR-Demo für Schreibkompetenz")
@@ -187,13 +187,10 @@ if st.button("Analysieren"):
 
         # 🌳 Bonsai-Visualisierung (L-System)
         st.subheader("Bonsai-Visualisierung (Prototype)")
-        st.write("DEBUG: vor generate_bonsai_figure")
 
-        dims_for_bonsai = result.get("dims", {})
-        fig = generate_bonsai_figure({"dims": dims_for_bonsai})
-
-        st.write("DEBUG: nach generate_bonsai_figure, type(fig) =", str(type(fig)))
+        fig = generate_disce_bonsai_figure(result)
         st.pyplot(fig)
+
 
 
 
