@@ -90,6 +90,23 @@ if st.button("Analysieren"):
                 st.write(f"- Oblique-Ratio (Gen+Dat): `{morph['oblique_case_ratio']:.1%}`")
 
 
+            # Passiv-Konstruktionen
+            st.subheader("Passiv")
+            pv = result.get("passive_feats", {})
+            if pv and pv.get("total_clauses", 0) > 0:
+                st.write(f"- Vorgangspassiv: `{pv['vorgangspassiv']}`")
+                st.write(f"- Zustandspassiv: `{pv['zustandspassiv']}`")
+                st.write(f"- Modalpassiv: `{pv['modalpassiv']}`")
+                st.write(f"- **Passiv gesamt: `{pv['total_passive']}` ({pv['passive_ratio']:.1%})**")
+                if pv.get("passive_instances"):
+                    with st.expander("Beispiele"):
+                        for ex in pv["passive_instances"]:
+                            st.write(f"  - {ex}")
+            else:
+                st.write("- Keine Daten")
+
+
+
             # Verb-Modus (Konjunktiv)
             st.subheader("Verb-Modus")
             mood = result.get("mood_feats", {})
