@@ -313,6 +313,19 @@ if st.button("Analysieren"):
                 else:
                     st.write("_Keine Hotspots gefunden._")
 
+                st.markdown("**Sätze & Hotspots (Debug)**")
+                sentence_data = result.get("sentence_data", [])
+                hotspots = result.get("hotspots", [])
+
+                st.write(f"- # sentence_data: `{len(sentence_data)}`")
+                st.write(f"- # hotspots: `{len(hotspots)}`")
+
+                if hotspots:
+                    st.json(hotspots[:5])
+                else:
+                    st.write("_Keine Hotspots im Result-Objekt._")
+
+
 
             with tab4:
                 st.markdown("**Satztypen**")
