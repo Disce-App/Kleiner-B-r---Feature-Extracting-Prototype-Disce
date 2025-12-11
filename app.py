@@ -187,9 +187,14 @@ if st.button("Analysieren"):
 
         # 🌳 Bonsai-Visualisierung (L-System)
         st.subheader("Bonsai-Visualisierung (Prototype)")
+        st.write("DEBUG: vor generate_bonsai_figure")
+
         dims_for_bonsai = result.get("dims", {})
         fig = generate_bonsai_figure({"dims": dims_for_bonsai})
+
+        st.write("DEBUG: nach generate_bonsai_figure, type(fig) =", str(type(fig)))
         st.pyplot(fig)
+
 
 
         
