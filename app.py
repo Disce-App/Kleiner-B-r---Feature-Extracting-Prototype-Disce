@@ -160,6 +160,24 @@ if st.button("Analysieren"):
                     for w in rare_words[:10]:
                         st.write(f"- **{w['word']}** ({w['lemma']}, Zipf={w['zipf']})")
 
+            # ✅ NEU: Hotspots für Coaching / LLM
+            st.subheader("Satz-Hotspots (für Feedback)")
+            hotspots = result.get("hotspots", [])
+            if hotspots:
+                for h in hotspots:
+                    st.write(f"**Satz {h['sentence_index']}** – Gründe: {', '.join(h['reasons'])}")
+                    st.write(h["sentence_text"])
+                    st.markdown(
+                        f"<small>Länge: {h['features']['length']}, "
+                        f"Konnektoren: {h['features']['connector_count']}, "
+                        f"Modalpartikeln: {h['features']['modal_particle_count']}</small>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown("---")
+            else:
+                st.write("- Keine Hotspots gefunden.")
+
+
         st.subheader("Kommentar zur Schätzung")
         st.write(
             "Diese Schätzung basiert auf einem Regressionsmodell, das auf dem MERLIN-Korpus "
