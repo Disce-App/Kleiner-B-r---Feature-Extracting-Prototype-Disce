@@ -11,11 +11,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 
 import math
 import random
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 
 
 # ---------------------------------------------------
@@ -62,7 +63,6 @@ class TreeOptions:
 
 # ---------------------------------------------------
 # Mapping: 6 Text-Dimensionen -> TreeOptions
-# (vereinfachte Übertragung von DisceTreeMapper.metricsToOptions)
 # ---------------------------------------------------
 
 def options_from_dims(dims: Dict) -> TreeOptions:
@@ -309,7 +309,7 @@ def _draw_tree(lsys: str, opts: TreeOptions, dims: Dict) -> plt.Figure:
 
 def _draw_leaves(ax, segments, dims: Dict, rng: random.Random) -> None:
     """
-    Zeichnet Blatt-Cluster an Endästen.
+    Zeichnet organische Blatt-Cluster (Ellipsen-Büschel) an Endästen.
 
     Heuristik:
       - Blätter nur an Segmenten ohne Kinder (has_child == False)
@@ -336,19 +336,18 @@ def _draw_leaves(ax, segments, dims: Dict, rng: random.Random) -> None:
     if not leaf_segments:
         return
 
-    # Basis-Blattanzahl pro Endast, skaliert mit lexical_diversity
-    base_leaves_per_segment = 2 + int(lex * 3)  # 2–5
+    # Basis-Anzahl von Clustern pro Endast, skaliert mit lexical_diversity
+    base_clusters_per_segment = 1 + int(lex * 3)   # 1–4 Cluster pro Endast
 
-    # Begrenze Gesamtanzahl Blätter, damit das Bild nicht überladen wird
-    max_total_leaves = 280
-    est_total = len(leaf_segments) * base_leaves_per_segment
-    if est_total <= 0:
+    # Begrenze Gesamtanzahl Cluster, damit das Bild nicht überladen wird
+    max_total_clusters = 160
+    est_total_clusters = len(leaf_segments) * base_clusters_per_segment
+    if est_total_clusters <= 0:
         return
-    density_scale = min(1.0, max_total_leaves / est_total)
+    density_scale = min(1.0, max_total_clusters / est_total_clusters)
 
-    # Kohäsion: hoher Wert -> engerer Spread um die Ast-Richtung
-    # 25–50 Grad
-    spread_deg = 25.0 + (1.0 - coh) * 25.0
+    # Kohäsion: hoher Wert -> engerer Spread um die Ast-Richtung (20–45°)
+    spread_deg = 20.0 + (1.0 - coh) * 25.0
     spread = math.radians(spread_deg)
 
     # Blattgröße: schwierigere Texte -> etwas kleinere Blätter
@@ -360,35 +359,55 @@ def _draw_leaves(ax, segments, dims: Dict, rng: random.Random) -> None:
         base_theta = math.atan2(dy, dx)
         seg_len = max(1e-3, math.hypot(dx, dy))
 
-        # Blatt-Cluster radial um das Astende herum
-        r_min = 0.2 * seg_len
-        r_max = 0.6 * seg_len
+        # Cluster-Zentrum: etwas vom Astende weg
+        r_min = 0.3 * seg_len
+        r_max = 0.9 * seg_len
 
-        n_leaves = max(1, int(round(base_leaves_per_segment * density_scale)))
+        n_clusters = max(1, int(round(base_clusters_per_segment * density_scale)))
 
-        for _ in range(n_leaves):
-            theta = base_theta + rng.uniform(-spread, spread)
+        for _ in range(n_clusters):
+            theta_center = base_theta + rng.uniform(-spread, spread)
             r = rng.uniform(r_min, r_max)
-            x_leaf = seg.end_x + math.cos(theta) * r
-            y_leaf = seg.end_y + math.sin(theta) * r
+            cx = seg.end_x + math.cos(theta_center) * r
+            cy = seg.end_y + math.sin(theta_center) * r
 
-            # Grünnuance leicht mit lexical_diversity variieren
-            leaf_color = (
-                0.18,
-                0.5 + 0.3 * lex,   # 0.5–0.8
-                0.22,
-                0.85,
-            )
-            leaf_size = 10.0 * size_scale
+            # Pro Cluster 2–4 überlappende Ellipsen als "Blattbüschel"
+            n_ellipses = rng.randint(2, 4)
+            for _ in range(n_ellipses):
+                # Leichter Versatz um das Clusterzentrum
+                off_r = rng.uniform(0.0, 0.3 * seg_len)
+                off_theta = theta_center + rng.uniform(-0.8, 0.8)
+                ex = cx + math.cos(off_theta) * off_r
+                ey = cy + math.sin(off_theta) * off_r
 
-            ax.scatter(
-                [x_leaf],
-                [y_leaf],
-                s=leaf_size,
-                c=[leaf_color],
-                marker="o",
-                linewidths=0,
-            )
+                # Ellipsen-Geometrie: Breite ~ Astlänge, Höhe etwas kleiner
+                base_width = max(0.25 * seg_len, 0.15)
+                base_height = base_width * 0.6
+
+                width = base_width * (0.8 + rng.random() * 0.6) * size_scale
+                height = base_height * (0.8 + rng.random() * 0.6) * size_scale
+
+                # Orientierung leicht um die Ast-Richtung herum variieren
+                angle_deg = math.degrees(base_theta) + rng.uniform(-25.0, 25.0)
+
+                # Grünnuance: lexical_diversity und difficulty leicht einfließen lassen
+                g_base = 0.55 + 0.3 * lex       # 0.55–0.85
+                g = max(0.45, min(0.9, g_base))
+                darken = 0.15 * diff
+                r_col = 0.16 - darken * 0.3
+                b_col = 0.20 - darken * 0.2
+
+                color = (max(0.0, r_col), g, max(0.0, b_col), 0.85)
+
+                leaf = Ellipse(
+                    (ex, ey),
+                    width=width,
+                    height=height,
+                    angle=angle_deg,
+                    facecolor=color,
+                    edgecolor="none",
+                )
+                ax.add_patch(leaf)
 
 
 def diff_factor_from_opts(opts: TreeOptions) -> float:
