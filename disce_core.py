@@ -251,6 +251,96 @@ def build_metrics_summary(
     return summary
 
 
+def build_disce_metrics(metrics_summary: dict, context: dict | None = None) -> dict:
+    """
+    Baut ein DisceMetrics-Objekt für den Bonsai-Visualizer.
+
+    context kann später Dinge enthalten wie:
+    - target_cefr (1-4)
+    - goal_progress (0-1)
+    - engagement_streak, milestones_achieved, ...
+    Für den Prototypen setzen wir vieles noch heuristisch.
+    """
+    context = context or {}
+
+    dims = metrics_summary.get("dims", {})
+    cefr = metrics_summary.get("cefr", {})
+    text_stats = metrics_summary.get("text_stats", {})
+    discourse = metrics_summary.get("discourse", {})
+    style = metrics_summary.get("style", {})
+    readability = metrics_summary.get("readability", {})
+    negq = metrics_summary.get("negation_quantifiers", {})
+
+    # CEFR-Score 1..6 auf 1..4 (B1-B2-C1-C2) mappen
+    raw_score = float(cefr.get("score", 3.5))
+    # 1..6 → 1..4
+    cefr_level = int(round(1 + (raw_score - 2.5) * (3 / 3.5)))
+    cefr_level = max(1, min(4, cefr_level))
+
+    # Schreib-spezifische Scores aus Dims
+    writing_score = float(dims.get("lexical_diversity", 0.7))
+    cohesion_score = float(dims.get("cohesion", 0.4))
+    difficulty = float(dims.get("text_difficulty", 0.5))
+
+    # Heuristik: "task_exam_fit" erst mal als Funktion von difficulty,
+    # später ersetzt durch prüfungsspezifische Rubrik.
+    task_exam_fit = 1.0 - abs(difficulty - 0.6)  # grob: ideal bei ~0.6
+
+    # Wenn noch keine echte Ziel-Progression existiert, nimm Textlänge/Komplexität
+    goal_progress = context.get("goal_progress")
+    if goal_progress is None:
+        # Sehr grobe Heuristik: mehr Text + mehr Komplexität → mehr "Fortschritt"
+        ntok = text_stats.get("num_tokens", 0)
+        synt_comp = float(dims.get("syntactic_complexity", 0.3))
+        goal_progress = max(0.1, min(1.0, (ntok / 400.0) * 0.4 + synt_comp * 0.6))
+
+    # Engagement/Milestones können später aus Benutzerprofil kommen.
+    engagement_streak = int(context.get("engagement_streak", 0))
+    milestones_achieved = int(context.get("milestones_achieved", 0))
+    session_completion_rate = float(context.get("session_completion_rate", 0.0))
+    consistency_score = float(context.get("consistency_score", 0.0))
+
+    # Cross-skill / Readiness vorerst moderat setzen
+    cross_skill_correlation = float(context.get("cross_skill_correlation", 0.7))
+    readiness_velocity = float(context.get("readiness_velocity", 0.4))
+    weekly_delta = float(context.get("weekly_delta", 0.05))
+
+    # Für den Schreib-Prototypen: speaking/listening/reading erstmal an writing koppeln
+    speaking_score = float(context.get("speaking_score", writing_score * 0.9))
+    listening_score = float(context.get("listening_score", writing_score * 0.9))
+    reading_score = float(context.get("reading_score", writing_score * 1.0))
+
+    # Readiness-Flags später aus Produktlogik;
+    # hier einfach False defaulten
+    exam_ready = bool(context.get("exam_ready", False))
+    presentation_ready = bool(context.get("presentation_ready", False))
+    interview_ready = bool(context.get("interview_ready", False))
+    authority_ready = bool(context.get("authority_ready", False))
+
+    return {
+        "level_match": float(context.get("level_match", 0.7)),  # später: Distanz Ziel-CEFR vs. Ist
+        "prosody_intelligibility": float(context.get("prosody_intelligibility", 0.7)),
+        "sentence_cohesion": cohesion_score,
+        "task_exam_fit": task_exam_fit,
+        "goal_progress": goal_progress,
+        "speaking_score": speaking_score,
+        "writing_score": writing_score,
+        "listening_score": listening_score,
+        "reading_score": reading_score,
+        "engagement_streak": engagement_streak,
+        "session_completion_rate": session_completion_rate,
+        "consistency_score": consistency_score,
+        "exam_ready": exam_ready,
+        "presentation_ready": presentation_ready,
+        "interview_ready": interview_ready,
+        "authority_ready": authority_ready,
+        "milestones_achieved": milestones_achieved,
+        "cefr_level": cefr_level,
+        "cross_skill_correlation": cross_skill_correlation,
+        "readiness_velocity": readiness_velocity,
+        "weekly_delta": weekly_delta,
+    }
+
 
 def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     """
@@ -386,6 +476,7 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         passive_feats=passive_feats,
         neg_quant_feats=neg_quant_feats,
     )
+    disce_metrics = build_disce_metrics(metrics_summary, context={})
 
     return {
         "num_sentences": num_sentences,
@@ -417,5 +508,6 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         "sentence_data": sentence_data, # ✅ NEU:
         "hotspots": hotspots,
         "metrics_summary": metrics_summary,
+        "disce_metrics": disce_metrics,
     }
 
