@@ -312,12 +312,18 @@ def generate_bonsai_figure(metrics_or_dims: Dict | None = None):
 
     s = build_lsystem_string(axiom, rules, params.iterations)
     
-    # Debug-Ausgabe in die Konsole
+     # Debug-Ausgabe in die Konsole
     print("Bonsai debug:",
           "iterations=", params.iterations,
           "len_string=", len(s))
     
     fig = _draw_bonsai_from_string(s, params)
+
+    # 🔴 DEBUG-Linie hinzufügen, damit wir sehen, dass irgendwas gezeichnet wird
+    ax = fig.axes[0] if fig.axes else None
+    if ax is not None:
+        ax.plot([-0.5, 0.5], [-0.1, -0.1], color="red", linewidth=2)
+
     return fig
 
 
