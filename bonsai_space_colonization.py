@@ -159,6 +159,52 @@ def _generate_bonsai_attractors(params: BonsaiParams) -> List[Attractor]:
     return attractors
 
 
+def _initialize_trunk(attractors: List[Attractor], params: BonsaiParams) -> List[Branch]:
+    """
+    Lässt den Stamm von (0,0) nach oben wachsen, bis er in den Einflussbereich
+    der Krone kommt (oder die Kronenhöhe überschritten ist).
+    Dadurch haben die ersten Attraktoren überhaupt eine Chance, Äste anzuziehen.
+    """
+    branches: List[Branch] = [
+        Branch(x=0.0, y=0.0, parent_index=None, direction_x=0.0, direction_y=1.0, depth=0)
+    ]
+
+    # Solange der letzte Stamm-Branch noch "weit weg" von allen Attraktoren ist,
+    # wächst er Schritt für Schritt nach oben.
+    max_trunk_iterations = 200  # Sicherheitsgrenze
+    for _ in range(max_trunk_iterations):
+        last = branches[-1]
+
+        # Abstand zur nächstgelegenen Attraktor
+        if attractors:
+            min_dist = min(math.hypot(a.x - last.x, a.y - last.y) for a in attractors)
+        else:
+            min_dist = float("inf")
+
+        # Wenn wir nah genug an der Krone sind, brechen wir ab
+        if min_dist < params.influence_radius * 1.2:
+            break
+
+        # Oder wenn wir die geplante Kronenhöhe überschreiten, auch abbrechen
+        if last.y > params.trunk_height + params.crown_height:
+            break
+
+        # Sonst Stamm weiter nach oben wachsen lassen
+        new_y = last.y + params.branch_step
+        new_branch = Branch(
+            x=last.x,
+            y=new_y,
+            parent_index=len(branches) - 1,
+            direction_x=0.0,
+            direction_y=1.0,
+            depth=last.depth + 1,
+        )
+        branches.append(new_branch)
+
+    return branches
+
+
+
 # -----------------------------
 # Space-Colonization-Hauptschleife (2D)
 # -----------------------------
@@ -171,9 +217,10 @@ def _grow_tree(params: BonsaiParams) -> Tuple[List[Branch], List[Attractor]]:
     """
     attractors = _generate_bonsai_attractors(params)
 
-    # Stamm initialisieren: vertikal von (0, 0) nach oben
-    branches: List[Branch] = [Branch(x=0.0, y=0.0, parent_index=None,
-                                     direction_x=0.0, direction_y=1.0, depth=0)]
+    # Stamm initialisieren und bis in den Einflussbereich der Krone ziehen
+    branches: List[Branch] = _initialize_trunk(attractors, params)
+
+
 
     iteration = 0
     while iteration < params.max_iterations and any(a.active for a in attractors):
