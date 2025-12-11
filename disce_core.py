@@ -24,12 +24,134 @@ from features_viewer import (
     passive_voice_features,
     negation_quantifier_features,
     dependency_tree_features,
-    morphology_features, 
+    morphology_features,
     compute_dimension_scores,
     estimate_cefr_score_from_dims,
     estimate_cefr_label_from_dims,
     verb_mood_features,
+    CONNECTOR_LIST,               # ✅ NEU
+    MODAL_PARTICLES,              # ✅ NEU
 )
+
+def build_sentence_data(sentences, tagged_sentences, dep_tree):
+    """
+    Baut eine Liste von Satz-Records mit:
+    - index
+    - text
+    - length (Tokens)
+    - connector_count
+    - modal_particle_count
+    - tree_depth (falls von spaCy verfügbar)
+    """
+    # Satztexte aus SoMaJo-Tokens rekonstruieren
+    sentence_texts = [
+        " ".join(tok.text for tok in sent)
+        for sent in sentences
+    ]
+
+    # Baumtiefen pro Satz (können fehlen, z.B. wenn spaCy scheitert)
+    tree_depths = None
+    if dep_tree is not None:
+        tree_depths = dep_tree.get("sent_tree_depths")
+        if tree_depths is not None and len(tree_depths) != len(sentences):
+            # Defensive: lieber ignorieren als falsch zu mappen
+            tree_depths = None
+
+    sentence_data = []
+    for i, (sent_tokens, tagged) in enumerate(zip(sentences, tagged_sentences)):
+        length = len(tagged)
+
+        connector_count = 0
+        modal_particle_count = 0
+
+        for token_tuple in tagged:
+            if len(token_tuple) < 1:
+                continue
+            word = token_tuple[0].lower()
+            if word in CONNECTOR_LIST:
+                connector_count += 1
+            if word in MODAL_PARTICLES:
+                modal_particle_count += 1
+
+        depth = None
+        if tree_depths is not None and i < len(tree_depths):
+            depth = tree_depths[i]
+
+        sentence_data.append({
+            "index": i,
+            "text": sentence_texts[i],
+            "length": length,
+            "connector_count": connector_count,
+            "modal_particle_count": modal_particle_count,
+            "tree_depth": depth,
+        })
+
+    return sentence_data
+
+
+def select_hotspots(sentence_data, max_per_type=3, max_total=10):
+    """
+    Wählt Sätze aus, die für Feedback & Übungen spannend sind.
+
+    Heuristiken:
+    - long_sentence: Top-N nach Länge
+    - deep_tree: Top-N nach Baumtiefe
+    - low_cohesion_no_connectors: keine Konnektoren, aber lang
+    - many_modal_particles: viele Modalpartikeln (informeller Ton)
+    """
+    if not sentence_data:
+        return []
+
+    # Gründe pro Satzindex sammeln
+    reasons_by_index = {d["index"]: [] for d in sentence_data}
+
+    # 1) Lange Sätze
+    sorted_by_length = sorted(sentence_data, key=lambda d: d["length"], reverse=True)
+    for d in sorted_by_length[:max_per_type]:
+        reasons_by_index[d["index"]].append("long_sentence")
+
+    # 2) Tiefe Sätze (nur wenn Baumtiefe vorhanden)
+    with_depth = [d for d in sentence_data if d.get("tree_depth") is not None]
+    sorted_by_depth = sorted(with_depth, key=lambda d: d["tree_depth"], reverse=True)
+    for d in sorted_by_depth[:max_per_type]:
+        reasons_by_index[d["index"]].append("deep_tree")
+
+    # 3) Kohäsions-Schwachstellen: lange Sätze ohne Konnektoren
+    for d in sentence_data:
+        if d["connector_count"] == 0 and d["length"] >= 15:
+            reasons_by_index[d["index"]].append("low_cohesion_no_connectors")
+
+    # 4) Informelle Sätze: viele Modalpartikeln
+    for d in sentence_data:
+        if d["modal_particle_count"] >= 2:
+            reasons_by_index[d["index"]].append("many_modal_particles")
+
+    # Hotspots zusammenbauen
+    hotspots = []
+    for d in sentence_data:
+        reasons = reasons_by_index[d["index"]]
+        if not reasons:
+            continue
+        hotspot = {
+            "sentence_index": d["index"],
+            "sentence_text": d["text"],
+            "reasons": reasons,
+            "features": {
+                "length": d["length"],
+                "connector_count": d["connector_count"],
+                "modal_particle_count": d["modal_particle_count"],
+                "tree_depth": d["tree_depth"],
+            },
+        }
+        hotspots.append(hotspot)
+
+    # Nach Wichtigkeit sortieren (zuerst viele Gründe, dann Länge)
+    hotspots.sort(
+        key=lambda h: (len(h["reasons"]), h["features"]["length"]),
+        reverse=True,
+    )
+
+    return hotspots[:max_total]
 
 
 def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
@@ -115,6 +237,10 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     # 7) Dependency-Baumtiefe (spaCy) ✅ NEU
     dep_tree = dependency_tree_features(text)
 
+    # 7b) Satzdaten + Hotspots (für LLM & UI) ✅ NEU
+    sentence_data = build_sentence_data(sentences, tagged_sentences, dep_tree)
+    hotspots = select_hotspots(sentence_data)
+
     # 8) Dimensionen
     dim_scores = compute_dimension_scores(
         num_tokens=num_tokens,
@@ -157,13 +283,16 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         "punct_feats": punct_feats,
         "lix": lix,
         "mp_feats": mp_feats,
-        "freq_feats": freq_feats,      # ✅ NEU
-        "rare_words": rare_words,       # ✅ NEU
+        "freq_feats": freq_feats,
+        "rare_words": rare_words,
         "passive_feats": passive_feats,
         "neg_quant_feats": neg_quant_feats,
         "mattr": mattr,
         "morph_feats": morph_feats,
         "dep_tree": dep_tree,
         "debug_tags": debug_tags,
-        "mood_feats": mood_feats,
+        "mood_feats": mood_feats, 
+        "sentence_data": sentence_data, # ✅ NEU:
+        "hotspots": hotspots,
     }
+
