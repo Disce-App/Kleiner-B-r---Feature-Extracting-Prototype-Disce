@@ -1,16 +1,28 @@
 import streamlit as st
+
 from disce_core import analyze_text_for_ui
 from bonsai_disce_tree import generate_disce_bonsai_figure
 
-st.set_page_config(page_title="Disce CEFR-Demo", layout="wide")
-st.title("Disce – CEFR-Demo für Schreibkompetenz")
-st.write("Gib einen deutschen Text ein und erhalte eine grobe Niveauschätzung (MERLIN-basiert).")
 
-# 🔧 Debug-Schalter in der Sidebar
+# -------------------------------------------------------------------
+# Page-Konfiguration
+# -------------------------------------------------------------------
+
+st.set_page_config(page_title="Disce CEFR-Demo", layout="wide")
+st.title("Disce CEFR-Demo für Schreibkompetenz")
+st.write(
+    "Gib einen deutschen Text ein und erhalte eine grobe Niveauschätzung "
+    "(MERLIN-basiert) plus Profil über mehrere Dimensionen."
+)
+
+# Debug-Schalter in der Sidebar
 st.sidebar.header("Debug")
 debug_mode = st.sidebar.checkbox("Debug-Modus aktivieren", value=False)
 
+# -------------------------------------------------------------------
 # Eingabe
+# -------------------------------------------------------------------
+
 default_text = "Schreibe hier deinen deutschen Text rein..."
 text = st.text_area("Text eingeben", value=default_text, height=300)
 
@@ -21,352 +33,448 @@ if st.button("Analysieren"):
         with st.spinner("Analysiere Text..."):
             result = analyze_text_for_ui(text)
 
-        # Hauptergebnis anzeigen
-        st.success(f"Fertig! Geschätztes Niveau: **{result['cefr_label']}** "
-                   f"(Score: {result['cefr_score']:.2f})")
+        # Hauptergebnis (CEFR)
+        st.success(
+            f"Fertig! Geschätztes Niveau: **{result['cefr_label']}** "
+            f"(Score: {result['cefr_score']:.2f})"
+        )
 
-        # Spaltenlayout
-        col1, col2 = st.columns(2)
+        # -------------------------------------------------------------------
+        # Haupt-Tabs
+        # -------------------------------------------------------------------
+        tab_ov, tab_dims, tab_struct, tab_lex, tab_prag, tab_hot = st.tabs(
+            [
+                "Übersicht",
+                "Dimensionen",
+                "Struktur & Grammatik",
+                "Lexik & Frequenz",
+                "Pragmatik",
+                "Satz‑Hotspots",
+            ]
+        )
 
-        with col1:
-            st.subheader("Grunddaten")
-            st.write(f"- Sätze: `{result['num_sentences']}`")
-            st.write(f"- Tokens: `{result['num_tokens']}`")
+        dims = result.get("dims", {}) or {}
 
+        # ---------------------------------------------------------------
+        # Tab 1: Übersicht
+        # ---------------------------------------------------------------
+        with tab_ov:
+            st.subheader("Übersicht")
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Sätze", result.get("num_sentences", 0))
+            with col2:
+                st.metric("Tokens", result.get("num_tokens", 0))
+            with col3:
+                lix = result.get("lix")
+                if lix is not None:
+                    st.metric("LIX", f"{lix['lix']:.1f}")
+                else:
+                    st.metric("LIX", "–")
+
+            st.markdown("---")
+
+            # Disce-Dimensionen kompakt
+            st.markdown("**Disce‑Dimensionen (0–1)**")
+            c1, c2, c3 = st.columns(3)
+            c4, c5, c6 = st.columns(3)
+
+            c1.metric("Grammatik", f"{dims.get('grammar_accuracy', 0.0):.3f}")
+            c2.metric(
+                "Syntaktische Komplexität",
+                f"{dims.get('syntactic_complexity', 0.0):.3f}",
+            )
+            c3.metric(
+                "Lexikalische Vielfalt",
+                f"{dims.get('lexical_diversity', 0.0):.3f}",
+            )
+            c4.metric("Kohäsion", f"{dims.get('cohesion', 0.0):.3f}")
+            c5.metric(
+                "Textschwierigkeit",
+                f"{dims.get('text_difficulty', 0.0):.3f}",
+            )
+            c6.metric(
+                "Informalität",
+                f"{dims.get('register_informality', 0.0):.3f}",
+            )
+
+            st.markdown("---")
+
+            # Bonsai
+            st.subheader("Bonsai‑Visualisierung (Prototype)")
+            fig = generate_disce_bonsai_figure(result)
+            st.pyplot(fig, use_container_width=True)
+
+        # ---------------------------------------------------------------
+        # Tab 2: Dimensionen
+        # ---------------------------------------------------------------
+        with tab_dims:
             st.subheader("Dimensionen (0–1)")
-            dims = result["dims"]
-            for name, val in dims.items():
-                if name == "written_formality":
-                    continue
-                st.write(f"- **{name}**: {val:.3f}")
 
-        with col2:
-            st.subheader("Lesbarkeit (LIX)")
-            lix = result["lix"]
-            if lix is not None:
-                st.write(f"- LIX: `{lix['lix']:.1f}`")
-                st.write(f"- Lange Wörter (>=7): `{lix['num_long_words']}` "
-                         f"({lix['share_long_words']:.2f} Anteil)")
-            else:
-                st.write("- LIX: nicht berechenbar")
+            st.write(
+                "Die Skalen sind intern normiert (0–1). "
+                "Sie dienen vor allem zum Vergleich zwischen Texten."
+            )
 
-            st.subheader("Lexik")
-            lex = result["lex_feats"]
-            st.write(f"- Unikate Wortformen: `{lex['unique_tokens']}`")
-            st.write(f"- Unikate Lemmata: `{lex['unique_lemmas']}`")
-            st.write(f"- TTR: `{lex['ttr']:.3f}`")
-            st.write(f"- Lemma-TTR: `{lex['lemma_ttr']:.3f}`")
+            rows = [
+                (
+                    "Grammatik‑Genauigkeit",
+                    "grammar_accuracy",
+                    "Fehlerfreiheit, Stabilität der Formen.",
+                ),
+                (
+                    "Syntaktische Komplexität",
+                    "syntactic_complexity",
+                    "Satzverschachtelung, Nebensätze, Relativsätze, Baumtiefe.",
+                ),
+                (
+                    "Lexikalische Vielfalt",
+                    "lexical_diversity",
+                    "Varianz im Wortschatz (MATTR, Anteil Inhaltswörter).",
+                ),
+                (
+                    "Kohäsion",
+                    "cohesion",
+                    "Verknüpfung zwischen Sätzen (Konnektoren, Wiederaufnahme).",
+                ),
+                (
+                    "Textschwierigkeit",
+                    "text_difficulty",
+                    "Lesbarkeit (LIX) + Wortfrequenz (SUBTLEX‑DE).",
+                ),
+                (
+                    "Register‑Informalität",
+                    "register_informality",
+                    "0 = eher formell, 1 = eher informell (Pronomen, direkte Rede, "
+                    "Modalpartikeln).",
+                ),
+            ]
 
-            # Wortfrequenz-Sektion
-            st.subheader("Wortfrequenz (SUBTLEX-DE)")
-            freq = result["freq_feats"]
-            st.write(f"- Ø Zipf-Frequenz: `{freq['avg_zipf']:.2f}`")
-            st.write(f"- Seltene Wörter (Zipf<3): `{freq['rare_word_count']}` ({freq['rare_word_share']:.1%})")
-            st.write(f"- Sehr häufige (Zipf>5.5): `{freq['very_common_share']:.1%}`")
-            st.write(f"- Schwierigkeitsscore: `{freq['difficulty_score']:.3f}`")
+            for label, key, desc in rows:
+                val = dims.get(key, 0.0)
+                with st.expander(f"{label} — {val:.3f}", expanded=False):
+                    st.write(desc)
 
-            # Syntaktische Tiefe (spaCy)
-            st.subheader("Syntaktische Tiefe (spaCy)")
+        # ---------------------------------------------------------------
+        # Tab 3: Struktur & Grammatik
+        # ---------------------------------------------------------------
+        with tab_struct:
+            st.subheader("Struktur & Grammatik")
+
+            # Syntaktische Tiefe
             dep = result.get("dep_tree")
-            if dep and dep.get("num_sents_parsed", 0) > 0:
-                st.write(f"- Ø Baumtiefe: `{dep['avg_tree_depth']:.2f}`")
-                st.write(f"- Min/Max: `{dep['min_tree_depth']}` / `{dep['max_tree_depth']}`")
-            else:
-                st.write("- Keine Daten")
+            with st.expander("Syntaktische Tiefe (spaCy)", expanded=True):
+                if dep and dep.get("num_sents_parsed", 0) > 0:
+                    st.write(
+                        f"- Ø Baumtiefe: `{dep['avg_tree_depth']:.2f}` "
+                        f"(Min: `{dep['min_tree_depth']}`, "
+                        f"Max: `{dep['max_tree_depth']}`)"
+                    )
+                else:
+                    st.write("- Keine Daten")
 
-            # ✅ Morphologie – auf gleicher Ebene wie die anderen Subheader!
-            st.subheader("Morphologie (Tempus/Kasus)")
-            morph = result.get("morph_feats", {})
-            if morph:
-                st.write(f"- Präsens: `{morph['present']}` ({morph['present_share']:.1%})")
-                st.write(f"- Präteritum: `{morph['past']}` ({morph['past_share']:.1%})")
-                st.write(f"- Partizip II: `{morph['perfect']}` ({morph['perfect_share']:.1%})")
-                st.write(f"- Vergangenheits-Ratio: `{morph['past_tense_ratio']:.1%}`")
-                st.markdown("---")
-                st.write(f"- Nominativ: `{morph['nominative']}` ({morph['nominative_share']:.1%})")
-                st.write(f"- Genitiv: `{morph['genitive']}` ({morph['genitive_share']:.1%})")
-                st.write(f"- Dativ: `{morph['dative']}` ({morph['dative_share']:.1%})")
-                st.write(f"- Akkusativ: `{morph['accusative']}` ({morph['accusative_share']:.1%})")
-                st.write(f"- Oblique-Ratio (Gen+Dat): `{morph['oblique_case_ratio']:.1%}`")
+            # Morphologie
+            morph = result.get("morph_feats", {}) or {}
+            with st.expander("Morphologie (Tempus/Kasus)", expanded=False):
+                if morph:
+                    st.markdown("**Tempus**")
+                    st.write(
+                        f"- Präsens: `{morph['present']}` "
+                        f"({morph['present_share']:.1%})"
+                    )
+                    st.write(
+                        f"- Präteritum: `{morph['past']}` "
+                        f"({morph['past_share']:.1%})"
+                    )
+                    st.write(
+                        f"- Partizip II: `{morph['perfect']}` "
+                        f"({morph['perfect_share']:.1%})"
+                    )
+                    st.write(
+                        f"- Vergangenheits-Ratio: "
+                        f"`{morph['past_tense_ratio']:.1%}`"
+                    )
 
+                    st.markdown("---")
+                    st.markdown("**Kasus**")
+                    st.write(
+                        f"- Nominativ: `{morph['nominative']}` "
+                        f"({morph['nominative_share']:.1%})"
+                    )
+                    st.write(
+                        f"- Genitiv: `{morph['genitive']}` "
+                        f"({morph['genitive_share']:.1%})"
+                    )
+                    st.write(
+                        f"- Dativ: `{morph['dative']}` "
+                        f"({morph['dative_share']:.1%})"
+                    )
+                    st.write(
+                        f"- Akkusativ: `{morph['accusative']}` "
+                        f"({morph['accusative_share']:.1%})"
+                    )
+                    st.write(
+                        f"- Oblique-Ratio (Gen+Dat): "
+                        f"`{morph['oblique_case_ratio']:.1%}`"
+                    )
+                else:
+                    st.write("- Keine Daten")
 
-            # Passiv-Konstruktionen
-            st.subheader("Passiv")
-            pv = result.get("passive_feats", {})
-            if pv and pv.get("total_clauses", 0) > 0:
-                st.write(f"- Vorgangspassiv: `{pv['vorgangspassiv']}`")
-                st.write(f"- Zustandspassiv: `{pv['zustandspassiv']}`")
-                st.write(f"- Modalpassiv: `{pv['modalpassiv']}`")
-                st.write(f"- **Passiv gesamt: `{pv['total_passive']}` ({pv['passive_ratio']:.1%})**")
-                if pv.get("passive_instances"):
-                    with st.expander("Beispiele"):
-                        for ex in pv["passive_instances"]:
-                            st.write(f"  - {ex}")
-            else:
-                st.write("- Keine Daten")
+            # Passiv
+            pv = result.get("passive_feats", {}) or {}
+            with st.expander("Passivformen", expanded=False):
+                if pv and pv.get("total_clauses", 0) > 0:
+                    st.write(f"- Vorgangspassiv: `{pv['vorgangspassiv']}`")
+                    st.write(f"- Zustandspassiv: `{pv['zustandspassiv']}`")
+                    st.write(f"- Modalpassiv: `{pv['modalpassiv']}`")
+                    st.write(
+                        f"- **Passiv gesamt: `{pv['total_passive']}` "
+                        f"({pv['passive_ratio']:.1%})**"
+                    )
+                    if pv.get("passive_instances"):
+                        with st.expander("Beispiele", expanded=False):
+                            for ex in pv["passive_instances"]:
+                                st.write(f"- {ex}")
+                else:
+                    st.write("- Keine Daten")
 
-            # Negation & Quantoren
-            st.subheader("Negation & Quantoren")
-            nq = result.get("neg_quant_feats", {})
+            # Verb-Modus
+            mood = result.get("mood_feats", {}) or {}
+            with st.expander("Verb‑Modus", expanded=False):
+                if mood and mood.get("total_finite_verbs", 0) > 0:
+                    st.write(
+                        f"- Indikativ: `{mood['indicative']}` "
+                        f"({mood['indicative_share']:.1%})"
+                    )
+                    st.write(
+                        f"- Konjunktiv I: `{mood['subjunctive_1']}` "
+                        f"({mood['subjunctive_1_share']:.1%})"
+                    )
+                    st.write(
+                        f"- Konjunktiv II: `{mood['subjunctive_2']}` "
+                        f"({mood['subjunctive_2_share']:.1%})"
+                    )
+                    st.write(
+                        f"- würde‑Form: `{mood['wuerde_form']}` "
+                        f"({mood['wuerde_form_share']:.1%})"
+                    )
+                    st.write(
+                        f"- Imperativ: `{mood['imperative']}` "
+                        f"({mood['imperative_share']:.1%})"
+                    )
+                    st.write(
+                        f"- **Konjunktiv gesamt: "
+                        f"`{mood['total_subjunctive']}` "
+                        f"({mood['subjunctive_share']:.1%})**"
+                    )
+                else:
+                    st.write("- Keine Daten")
+
+        # ---------------------------------------------------------------
+        # Tab 4: Lexik & Frequenz
+        # ---------------------------------------------------------------
+        with tab_lex:
+            st.subheader("Lexik & Frequenz")
+
+            lex = result.get("lex_feats", {}) or {}
+            freq = result.get("freq_feats", {}) or {}
+            rare_words = result.get("rare_words", []) or []
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Lexikalische Kennzahlen**")
+                st.write(f"- Unikate Wortformen: `{lex.get('unique_tokens', 0)}`")
+                st.write(f"- Unikate Lemmata: `{lex.get('unique_lemmas', 0)}`")
+                st.write(f"- TTR: `{lex.get('ttr', 0.0):.3f}`")
+                st.write(f"- Lemma-TTR: `{lex.get('lemma_ttr', 0.0):.3f}`")
+
+            with col2:
+                st.markdown("**Wortfrequenz (SUBTLEX‑DE)**")
+                st.write(f"- Ø Zipf-Frequenz: `{freq.get('avg_zipf', 0.0):.2f}`")
+                st.write(
+                    f"- Seltene Wörter (Zipf<3): "
+                    f"`{freq.get('rare_word_count', 0)}` "
+                    f"({freq.get('rare_word_share', 0.0):.1%})"
+                )
+                st.write(
+                    f"- Sehr häufige (Zipf>5.5): "
+                    f"`{freq.get('very_common_share', 0.0):.1%}`"
+                )
+                st.write(
+                    f"- Schwierigkeitsscore: "
+                    f"`{freq.get('difficulty_score', 0.0):.3f}`"
+                )
+
+            with st.expander("Seltenste Wörter im Text", expanded=False):
+                if not rare_words:
+                    st.write("Keine Liste verfügbar.")
+                else:
+                    for w in rare_words[:10]:
+                        st.write(
+                            f"- **{w['word']}** "
+                            f"({w['lemma']}, Zipf={w['zipf']})"
+                        )
+
+        # ---------------------------------------------------------------
+        # Tab 5: Pragmatik
+        # ---------------------------------------------------------------
+        with tab_prag:
+            st.subheader("Pragmatik: Negation, Quantoren, Hedging")
+
+            nq = result.get("neg_quant_feats", {}) or {}
+
             if nq:
                 col_neg, col_quant = st.columns(2)
                 with col_neg:
-                    st.write(f"**Negation:** `{nq['negation']}` ({nq['negation_per_100']:.1f} pro 100 Tokens)")
+                    st.write(
+                        f"**Negation:** `{nq['negation']}` "
+                        f"({nq['negation_per_100']:.1f} pro 100 Tokens)"
+                    )
                     st.write(f"**Restriktive:** `{nq['restrictive']}`")
                 with col_quant:
-                    st.write(f"**Universelle Q.:** `{nq['universal_quantifier']}`")
-                    st.write(f"**Partielle Q.:** `{nq['partial_quantifier']}`")
-                
-                st.write(f"- Hedging-Ratio: `{nq['hedging_ratio']:.1%}` (hoch = vorsichtig)")
-                st.write(f"- Assertion-Strength: `{nq['assertion_strength']:.1%}` (hoch = starke Behauptungen)")
-                
-                # Beispiele
-                examples = nq.get("examples", {})
+                    st.write(
+                        f"**Universelle Q.:** "
+                        f"`{nq['universal_quantifier']}`"
+                    )
+                    st.write(
+                        f"**Partielle Q.:** "
+                        f"`{nq['partial_quantifier']}`"
+                    )
+
+                st.write(
+                    f"- Hedging-Ratio: `{nq['hedging_ratio']:.1%}` "
+                    "(hoch = vorsichtig)"
+                )
+                st.write(
+                    f"- Assertion-Strength: "
+                    f"`{nq['assertion_strength']:.1%}` "
+                    "(hoch = starke Behauptungen)"
+                )
+
+                examples = nq.get("examples", {}) or {}
                 has_examples = any(examples.get(k) for k in examples)
                 if has_examples:
-                    with st.expander("Beispiele"):
+                    with st.expander("Beispiele", expanded=False):
                         for category, words in examples.items():
-                            if words:
-                                label = {
-                                    "negation": "Negation",
-                                    "universal_quantifier": "Universell",
-                                    "partial_quantifier": "Partiell",
-                                    "restrictive": "Restriktiv"
-                                }.get(category, category)
-                                st.write(f"**{label}:** {', '.join(words)}")
+                            if not words:
+                                continue
+                            label = {
+                                "negation": "Negation",
+                                "universal_quantifier": "Universell",
+                                "partial_quantifier": "Partiell",
+                                "restrictive": "Restriktiv",
+                            }.get(category, category)
+                            st.write(f"**{label}:** {', '.join(words)}")
             else:
                 st.write("- Keine Daten")
 
-            # Verb-Modus (Konjunktiv)
-            st.subheader("Verb-Modus")
-            mood = result.get("mood_feats", {})
-            if mood and mood.get("total_finite_verbs", 0) > 0:
-                st.write(f"- Indikativ: `{mood['indicative']}` ({mood['indicative_share']:.1%})")
-                st.write(f"- Konjunktiv I: `{mood['subjunctive_1']}` ({mood['subjunctive_1_share']:.1%})")
-                st.write(f"- Konjunktiv II: `{mood['subjunctive_2']}` ({mood['subjunctive_2_share']:.1%})")
-                st.write(f"- würde-Form: `{mood['wuerde_form']}` ({mood['wuerde_form_share']:.1%})")
-                st.write(f"- Imperativ: `{mood['imperative']}` ({mood['imperative_share']:.1%})")
-                st.write(f"- **Konjunktiv gesamt: `{mood['total_subjunctive']}` ({mood['subjunctive_share']:.1%})**")
-            else:
-                st.write("- Keine Daten")
+        # ---------------------------------------------------------------
+        # Tab 6: Satz-Hotspots
+        # ---------------------------------------------------------------
+        with tab_hot:
+            st.subheader("Satz‑Hotspots (für Feedback)")
 
-
-            
-
-            # Seltene Wörter anzeigen
-            rare_words = result.get("rare_words", [])
-            if rare_words:
-                with st.expander("🔍 Seltenste Wörter im Text"):
-                    for w in rare_words[:10]:
-                        st.write(f"- **{w['word']}** ({w['lemma']}, Zipf={w['zipf']})")
-
-            # ✅ NEU: Hotspots für Coaching / LLM
-            st.subheader("Satz-Hotspots (für Feedback)")
-            hotspots = result.get("hotspots", [])
-            if hotspots:
-                for h in hotspots:
-                    st.write(f"**Satz {h['sentence_index']}** – Gründe: {', '.join(h['reasons'])}")
-                    st.write(h["sentence_text"])
-                    st.markdown(
-                        f"<small>Länge: {h['features']['length']}, "
-                        f"Konnektoren: {h['features']['connector_count']}, "
-                        f"Modalpartikeln: {h['features']['modal_particle_count']}</small>",
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown("---")
-            else:
+            hotspots = result.get("hotspots", []) or []
+            if not hotspots:
                 st.write("- Keine Hotspots gefunden.")
+            else:
+                for h in hotspots:
+                    header = (
+                        f"Satz {h['sentence_index']} – "
+                        f"Gründe: {', '.join(h['reasons'])}"
+                    )
+                    with st.expander(header, expanded=False):
+                        st.write(h["sentence_text"])
+                        feats = h.get("features", {}) or {}
+                        st.markdown(
+                            f"Länge: {feats.get('length', 0)}, "
+                            f"Konnektoren: {feats.get('connector_count', 0)}, "
+                            f"Modalpartikeln: {feats.get('modal_particle_count', 0)}"
+                        )
 
-
+        # ---------------------------------------------------------------
+        # Kommentar zur Schätzung
+        # ---------------------------------------------------------------
+        st.markdown("---")
         st.subheader("Kommentar zur Schätzung")
         st.write(
-            "Diese Schätzung basiert auf einem Regressionsmodell, das auf dem MERLIN-Korpus "
-            "kalibriert wurde (B1–C1-Lernertexte). Die Grammatikdimension wird aktuell "
-            "nur diagnostisch berechnet, fließt aber **noch nicht** in den CEFR-Score ein."
+            "Diese Schätzung basiert auf einem Regressionsmodell, das auf dem "
+            "MERLIN‑Korpus kalibriert wurde (B1–C1‑Lernertexte). "
+            "Die Grammatikdimension wird aktuell nur diagnostisch berechnet, "
+            "fließt aber **noch nicht** in den CEFR‑Score ein."
         )
 
-        # 🌳 Bonsai-Visualisierung (L-System)
-        st.subheader("Bonsai-Visualisierung (Prototype)")
-
-        fig = generate_disce_bonsai_figure(result)
-        st.pyplot(fig)
-
-
-
-
-        
-        # 🔧 DEBUG-BEREICH (NUR wenn debug_mode UND result existiert)
+        # -------------------------------------------------------------------
+        # DEBUG-Bereich (nur wenn debug_mode)
+        # -------------------------------------------------------------------
         if debug_mode:
             st.markdown("---")
-            st.subheader("🔧 Debug-Ansicht – Roh-Features")
+            st.subheader("Debug-Ansicht Roh-Features")
 
-            tab1, tab2, tab3, tab4 = st.tabs(
-                ["Grammatik & Dimensionen", "Lexik & Wortfrequenz", "Kohäsion & Referenzen", "Struktur & Satztypen"]
+            dbg1, dbg2, dbg3, dbg4 = st.tabs(
+                [
+                    "Grammatik & Dimensionen",
+                    "Lexik & Frequenz",
+                    "Kohäsion & Referenzen",
+                    "Struktur & Satztypen",
+                ]
             )
 
-            with tab1:
+            with dbg1:
                 st.markdown("**Grammatik (LanguageTool)**")
-                st.write(f"- Issues gesamt: `{result['num_issues']}`")
-                st.write(f"- Fehler pro 100 Tokens: `{result['errors_per_100']:.2f}`")
-
+                st.write(f"- Issues gesamt: `{result.get('num_issues', 0)}`")
+                st.write(
+                    f"- Fehler pro 100 Tokens: "
+                    f"`{result.get('errors_per_100', 0.0):.2f}`"
+                )
                 st.markdown("**Normalisierte Dimensionen (0–1)**")
-                for name, val in result["dims"].items():
+                for name, val in dims.items():
                     st.write(f"- `{name}`: **{val:.3f}**")
 
-            with tab1:
-                st.markdown("**Grammatik (LanguageTool)**")
-                st.write(f"- Issues gesamt: `{result['num_issues']}`")
-                st.write(f"- Fehler pro 100 Tokens: `{result['errors_per_100']:.2f}`")
-
-                st.markdown("**Normalisierte Dimensionen (0–1)**")
-                for name, val in result["dims"].items():
-                    st.write(f"- `{name}`: **{val:.3f}**")
-
-                # ✅ NEU: Morphologie im Debug
                 st.markdown("**Morphologie (Tempus/Kasus)**")
-                morph = result.get("morph_feats", {})
+                morph = result.get("morph_feats", {}) or {}
                 if morph:
-                    st.write(f"- Finite Verben: `{morph.get('total_finite_verbs', 0)}`")
-                    st.write(f"- Präsens: `{morph.get('present', 0)}`")
-                    st.write(f"- Präteritum: `{morph.get('past', 0)}`")
-                    st.write(f"- Partizip II: `{morph.get('perfect', 0)}`")
-                    st.write(f"- Kasus-markiert: `{morph.get('total_case_marked', 0)}`")
-                    st.json(morph)  # Zeigt alles als JSON
+                    st.json(morph)
                 else:
                     st.write("_Keine Morphologie-Daten._")
 
-
                 st.markdown("**Verb-Modus (Konjunktiv)**")
-                mood = result.get("mood_feats", {})
+                mood = result.get("mood_feats", {}) or {}
                 if mood:
                     st.json(mood)
                 else:
                     st.write("_Keine Modus-Daten._")
 
                 st.markdown("**Negation & Quantoren**")
-                nq = result.get("neg_quant_feats", {})
+                nq = result.get("neg_quant_feats", {}) or {}
                 if nq:
-                    # Beispiele für JSON-Anzeige entfernen (zu lang)
-                    nq_display = {k: v for k, v in nq.items() if k != "examples"}
-                    st.json(nq_display)
+                    st.json(nq)
                 else:
-                    st.write("_Keine Daten._")
+                    st.write("_Keine Negationsdaten._")
 
+            with dbg2:
+                st.markdown("**Lexik**")
+                st.json(result.get("lex_feats", {}))
+                st.markdown("**Wortfrequenz (SUBTLEX‑DE)**")
+                st.json(result.get("freq_feats", {}))
+                st.markdown("**Seltenste Wörter**")
+                st.json(result.get("rare_words", []))
 
-
-
-            with tab1:
-                st.markdown("**Grammatik (LanguageTool)**")
-                st.write(f"- Issues gesamt: `{result['num_issues']}`")
-                st.write(f"- Fehler pro 100 Tokens: `{result['errors_per_100']:.2f}`")
-
-                # ✅ NEU: Echte POS-Tags anzeigen
-                st.markdown("**🔍 Erste 15 POS-Tags (HanTa)**")
-                debug_tags = result.get("debug_tags", [])
-                if debug_tags:
-                    for tag in debug_tags:
-                        st.code(str(tag))
-                else:
-                    st.write("_Keine Tags verfügbar._")
-
-                st.markdown("**Normalisierte Dimensionen (0–1)**")
-                ...
-
-
-            with tab2:
-                st.markdown("**Lexikalische Basiswerte**")
-                lex = result["lex_feats"]
-                st.write(f"- Unikate Wortformen: `{lex['unique_tokens']}`")
-                st.write(f"- Unikate Lemmata: `{lex['unique_lemmas']}`")
-                st.write(f"- TTR: `{lex['ttr']:.3f}`")
-                st.write(f"- Lemma-TTR: `{lex['lemma_ttr']:.3f}`")
-                st.write(f"- Anteil Inhaltswörter: `{lex['content_word_share']:.3f}`")
-
-                st.markdown("**Wortfrequenz (wordfreq)**")
-                freq = result["freq_feats"]
-                st.write(f"- Ø Zipf-Frequenz: `{freq['avg_zipf']:.2f}`")
-                st.write(f"- Median Zipf: `{freq['median_zipf']:.2f}`")
-                st.write(f"- Min/Max Zipf: `{freq['min_zipf']:.2f}` / `{freq['max_zipf']:.2f}`")
-                st.write(f"- Seltene Wörter (Zipf<3): `{freq['rare_word_count']}` ({freq['rare_word_share']:.1%})")
-                st.write(f"- Sehr häufige (Zipf>5.5): `{freq['very_common_share']:.1%}`")
-                st.write(f"- Unbekannte Wörter: `{freq['unknown_count']}` ({freq['unknown_share']:.1%})")
-                st.write(f"- Schwierigkeitsscore: `{freq['difficulty_score']:.3f}`")
-
-                rare_words = result.get("rare_words", [])
-                if rare_words:
-                    st.markdown("**Seltenste Wörter:**")
-                    st.table(rare_words[:20])
-
-                st.markdown("**Dependency-Baumtiefe (spaCy)**")
-                dep = result.get("dep_tree")
-                if dep and dep.get("num_sents_parsed", 0) > 0:
-                    st.write(f"- Ø Baumtiefe pro Satz: `{dep['avg_tree_depth']:.2f}`")
-                    st.write(f"- Min/Max Baumtiefe: `{dep['min_tree_depth']}` / `{dep['max_tree_depth']}`")
-                    st.write(f"- Sätze (spaCy): `{dep['num_sents_parsed']}`")
-                else:
-                    st.write("_Keine Daten (spaCy nicht geladen oder Fehler)._")
-
-            with tab3:
-                st.markdown("**Konnektoren**")
-                coh = result["coh_feats"]
-                st.write(f"- Konnektoren gesamt: `{coh['connector_count']}`")
-                st.write(f"- Verschiedene Konnektoren: `{coh['connector_type_count']}`")
-                st.write(f"- Dichte (pro 100 Tokens): `{coh['connector_density_per_100_tokens']:.2f}`")
-                if coh["connectors_used"]:
-                    st.write("Verwendete Konnektoren: " + ", ".join(coh["connectors_used"]))
-
-                st.markdown("**Lexikalische Wiederaufnahme (Overlap)**")
-                overlap = result["overlap"]
-                if overlap:
-                    st.write(f"- Ø Overlap benachbarter Sätze: `{overlap['avg_overlap']:.3f}`")
-                    st.write(f"- Min/Max Overlap: `{overlap['min_overlap']:.3f}` / `{overlap['max_overlap']:.3f}`")
-                    st.write(f"- Satzpaare: `{overlap['num_pairs']}`")
-                else:
-                    st.write("_Zu wenig Daten für Overlap._")
-
+            with dbg3:
+                st.markdown("**Kohäsion (Konnektoren)**")
+                st.json(result.get("coh_feats", {}))
                 st.markdown("**Pronomen & Referenzen**")
-                pron = result["pronouns"]
-                st.write(f"- Pronomen gesamt: `{pron['total_pronouns']}`")
-                st.write(f"- Anteil Pronomen: `{pron['share_pronouns']:.3f}`")
-                st.write(f"- 3.-Person-Referenzen: `{pron['third_person_refs']}`")
-                st.json(pron["by_person"])
+                st.json(result.get("pronouns", {}))
 
-
-                st.markdown("**Hotspots (Satz-Auswahl)**")
-                hotspots = result.get("hotspots", [])
-                if hotspots:
-                    for h in hotspots:
-                        st.write(f"- Satz {h['sentence_index']}: {h['sentence_text']}")
-                        st.write(f"  Gründe: {', '.join(h['reasons'])}")
-                else:
-                    st.write("_Keine Hotspots gefunden._")
-
-                st.markdown("**Sätze & Hotspots (Debug)**")
-                sentence_data = result.get("sentence_data", [])
-                hotspots = result.get("hotspots", [])
-
-                st.write(f"- # sentence_data: `{len(sentence_data)}`")
-                st.write(f"- # hotspots: `{len(hotspots)}`")
-
-                if hotspots:
-                    st.json(hotspots[:5])
-                else:
-                    st.write("_Keine Hotspots im Result-Objekt._")
-
-
-
-            with tab4:
-                st.markdown("**Satztypen**")
-                st.json(result["sent_types"])
-
-                st.markdown("**Absatzstruktur**")
-                st.json(result["para_info"])
-
-                st.markdown("**Direkte Rede**")
-                st.json(result["direct_speech"])
-
-                st.markdown("**Interpunktion**")
-                st.json(result["punct_feats"])
-
-                st.markdown("**Modalpartikeln**")
-                st.json(result["mp_feats"])
+            with dbg4:
+                st.markdown("**Dependency‑Bäume**")
+                st.json(result.get("dep_tree", {}))
+                st.markdown("**Satztypen / Absatzstruktur / Interpunktion**")
+                st.json(
+                    {
+                        "sent_types": result.get("sent_types", {}),
+                        "paragraphs": result.get("paragraphs", {}),
+                        "punctuation": result.get("punct_feats", {}),
+                    }
+                )
