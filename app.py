@@ -20,7 +20,43 @@ st.sidebar.header("Debug")
 debug_mode = st.sidebar.checkbox("Debug-Modus aktivieren", value=False)
 
 # -------------------------------------------------------------------
-# Eingabe
+# Kontext-Auswahl
+# -------------------------------------------------------------------
+
+st.subheader("Kontext des Textes")
+
+context_options = [
+    "Prüfung – B2/C1/C2-Bereitschaft (realistische Aufgaben)",
+    "Präsentation – Struktur, Timing, souveräne Q&A‑Phase",
+    "Interview – klare, knappe Antworten; Register passend zur Situation",
+    "Behörde – höflich, aber bestimmt (Klärung & Lösungen)",
+    "Alltag – natürliches, erwachsenes Deutsch im echten Leben",
+    "Essay – argumentativ / reflektierend",
+    "Akademischer Essay / Hausarbeit",
+    "Freies Schreiben / Tagebuch / Reflexion",
+    "Anderer Kontext …",
+]
+
+selected_context = st.selectbox(
+    "In welchem Kontext ist der Text entstanden?",
+    options=context_options,
+    index=0,
+)
+
+if selected_context == "Anderer Kontext …":
+    context_detail = st.text_input(
+        "Kontext kurz beschreiben",
+        placeholder="z.B. E-Mail an Professorin, Blogartikel, LinkedIn-Post …",
+    )
+else:
+    context_detail = st.text_input(
+        "Optional: Kontext genauer beschreiben",
+        value="",
+        placeholder="z.B. B2-Telc-Vorbereitung, interne Projektpräsentation, Masterbewerbung …",
+    )
+
+# -------------------------------------------------------------------
+# Texteingabe
 # -------------------------------------------------------------------
 
 default_text = "Schreibe hier deinen deutschen Text rein..."
@@ -32,6 +68,12 @@ if st.button("Analysieren"):
     else:
         with st.spinner("Analysiere Text..."):
             result = analyze_text_for_ui(text)
+
+        # Kontext ans Result anhängen (für UI / spätere Logik)
+        result["context"] = {
+            "selected": selected_context,
+            "detail": context_detail.strip() or None,
+        }
 
         # Hauptergebnis (CEFR)
         st.success(
@@ -60,6 +102,19 @@ if st.button("Analysieren"):
         # ---------------------------------------------------------------
         with tab_ov:
             st.subheader("Übersicht")
+
+            # Kontext anzeigen
+            ctx = result.get("context", {})
+            ctx_label = ctx.get("selected", "–")
+            ctx_detail = ctx.get("detail")
+
+            st.markdown("**Kontext**")
+            if ctx_detail:
+                st.write(f"{ctx_label} — {ctx_detail}")
+            else:
+                st.write(ctx_label)
+
+            st.markdown("---")
 
             col1, col2, col3 = st.columns(3)
             with col1:
