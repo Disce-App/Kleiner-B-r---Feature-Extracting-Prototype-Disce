@@ -366,6 +366,87 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     
     num_sentences = len(tagged_sentences)
     num_tokens = count_tokens(tagged_sentences)
+
+
+# disce_core.py
+
+def analyze_text_for_llm(text: str, context: dict | None = None) -> dict:
+    """
+    Schlankes, stabiles Analyse-Interface für andere Systeme (Großer Bär, Make.com, LLM).
+    Nimmt Rohtext, gibt ein JSON-freundliches Dict mit:
+      - original_text
+      - context (optional)
+      - metrics_summary (aus build_metrics_summary)
+      - hotspots (aus select_hotspots)
+    """
+    context = context or {}
+
+    # Re-use bestehende Analyse-Pipeline aus analyze_text_for_ui
+    (
+        sentences,
+        tagged_sentences,
+        num_sentences,
+        num_tokens,
+        lengths,
+        subclauses,
+        complex_nps,
+        vorfeld,
+        lex_feats,
+        coh_feats,
+        overlap,
+        pron_stats,
+        token_seq,
+        mattr,
+        sent_types,
+        paras,
+        direct_speech,
+        punct_feats,
+        lix,
+        modal_feats,
+        wordfreq_feats,
+        dep_tree,
+        morph_feats,
+        mood_feats,
+        passive_feats,
+        neg_quant_feats,
+        dim_scores,
+        cefr_score,
+        cefr_label,
+    ) = _run_full_analysis_pipeline(text)  # diese Hilfsfunktion steckt bereits implizit in analyze_text_for_ui
+
+    metrics_summary = build_metrics_summary(
+        text,
+        num_sentences,
+        num_tokens,
+        lengths,
+        subclauses,
+        complex_nps,
+        vorfeld,
+        lex_feats,
+        coh_feats,
+        overlap,
+        lix,
+        wordfreq_feats,
+        dim_scores,
+        cefr_score,
+        cefr_label,
+        dep_tree,
+        morph_feats,
+        mood_feats,
+        passive_feats,
+        neg_quant_feats,
+    )
+
+    sentence_data = build_sentence_data(sentences, tagged_sentences, dep_tree)
+    hotspots = select_hotspots(sentence_data)
+
+    return {
+        "original_text": text,
+        "context": context,
+        "metrics_summary": metrics_summary,
+        "hotspots": hotspots,
+    }
+
     
     # ========== END DEBUG ============================
     
