@@ -289,6 +289,13 @@ elif st.session_state.phase == "feedback":
     # Ergebnisse anzeigen
     feedback = st.session_state.feedback_result
     transcript_text = st.session_state.get("transcript_text", "")
+
+
+    # Kleiner Bär Features anzeigen (wenn vorhanden)
+    if st.session_state.get("kleiner_baer_features"):
+        with st.expander("### 🐻 Kleiner Bär Analyse", expanded=True):
+            st.json(st.session_state.kleiner_baer_features)
+
     
     # Tabs für verschiedene Ansichten
     tab_feedback, tab_transcript, tab_metrics = st.tabs([
