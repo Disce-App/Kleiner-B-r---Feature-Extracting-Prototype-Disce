@@ -1,10 +1,17 @@
-     streamlit
-     somajo
-     HanTa
-     requests
-     wordfreq
-     matplotlib
-     # spaCy + deutsches Modell
-     spacy>=3.8.5,<3.9
-     https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl
+streamlit
+somajo
+HanTa
+requests
+wordfreq
+matplotlib
 
+# spaCy + deutsches Modell
+spacy>=3.8.5,<3.9
+https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl
+
+# === NEU für Großer Bär ===
+# Audio-Aufnahme im Browser
+audio-recorder-streamlit
+
+# Claude API (optional - ohne läuft Mock-Modus)
+anthropic
