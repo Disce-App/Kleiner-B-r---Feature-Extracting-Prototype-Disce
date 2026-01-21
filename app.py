@@ -1,6 +1,6 @@
 import streamlit as st
 
-from disce_core import analyze_text_for_ui
+from disce_core import analyze_text_for_ui, analyze_text_for_llm
 from bonsai_disce_tree import generate_disce_bonsai_figure
 
 
@@ -84,7 +84,7 @@ if st.button("Analysieren"):
         # -------------------------------------------------------------------
         # Haupt-Tabs
         # -------------------------------------------------------------------
-        tab_ov, tab_dims, tab_struct, tab_lex, tab_prag, tab_hot = st.tabs(
+        tab_ov, tab_dims, tab_struct, tab_lex, tab_prag, tab_hot, tab_api = st.tabs(
             [
                 "Übersicht",
                 "Dimensionen",
@@ -92,6 +92,7 @@ if st.button("Analysieren"):
                 "Lexik & Frequenz",
                 "Pragmatik",
                 "Satz‑Hotspots",
+                "API‑View",
             ]
         )
 
@@ -449,6 +450,19 @@ if st.button("Analysieren"):
                         )
 
         # ---------------------------------------------------------------
+        # Tab 7: API-View
+        # ---------------------------------------------------------------
+        with tab_api:
+            st.subheader("API-Output (analyze_text_for_llm)")
+            st.write("Das ist das JSON, das Großer Bär / Make.com bekommen würde:")
+
+            api_result = analyze_text_for_llm(text, context={
+                "selected": selected_context,
+                "detail": context_detail.strip() or None,
+            })
+            st.json(api_result)
+
+        # ---------------------------------------------------------------
         # Kommentar zur Schätzung
         # ---------------------------------------------------------------
         st.markdown("---")
@@ -533,29 +547,3 @@ if st.button("Analysieren"):
                         "punctuation": result.get("punct_feats", {}),
                     }
                 )
-
-
-# app.py – irgendwo nach den bestehenden Tabs
-tab_ov, tab_dims, tab_struct, tab_lex, tab_prag, tab_hot, tab_api = st.tabs(
-    [
-        "Übersicht",
-        "Dimensionen",
-        "Struktur & Grammatik",
-        "Lexik & Frequenz",
-        "Pragmatik",
-        "Satz Hotspots",
-        "API-View",  # NEU
-    ]
-)
-
-with tab_api:
-    st.subheader("API-Output (analyze_text_for_llm)")
-    if st.button("API-JSON anzeigen"):
-        from disce_core import analyze_text_for_llm
-
-        api_result = analyze_text_for_llm(text, context={
-            "selected": selected_context,
-            "detail": context_detail.strip() or None,
-        })
-        st.json(api_result)
-
