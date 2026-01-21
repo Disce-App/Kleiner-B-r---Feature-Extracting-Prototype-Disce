@@ -97,8 +97,17 @@ with st.sidebar:
 if st.session_state.phase == "select":
     st.header("1️⃣ Wähle deine Sprechaufgabe")
     
-    # Task-Auswahl
+    # Task-Auswahl - Handle sowohl Liste als auch Dict
     task_choices = get_task_choices()
+    
+    # Wenn es eine Liste ist, konvertiere zu Dict {label: id}
+    if isinstance(task_choices, list):
+        task_dict = {}
+        for tid in task_choices:
+            t = get_task(tid)
+            label = f"{t.get('scenario', tid)} ({t.get('target_register', '?')})"
+            task_dict[label] = tid
+        task_choices = task_dict
     
     selected_label = st.selectbox(
         "Welche Situation möchtest du üben?",
@@ -108,30 +117,7 @@ if st.session_state.phase == "select":
     
     task_id = task_choices[selected_label]
     task = get_task(task_id)
-    
-    # Task-Details anzeigen
-    with st.expander("📋 Aufgabendetails", expanded=True):
-        st.markdown(f"**Szenario:** {task['scenario']}")
-        st.markdown(f"**Zielregister:** {task['target_register']}")
-        st.markdown(f"**Zeitrahmen:** {task['time_limit_seconds']} Sekunden")
-        
-        st.markdown("---")
-        st.markdown("**Deine Aufgabe:**")
-        st.info(task["user_prompt"])
-        
-        if task.get("bullet_points"):
-            st.markdown("**Denk an diese Punkte:**")
-            for point in task["bullet_points"]:
-                st.markdown(f"- {point}")
-    
-    # Weiter-Button
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🎙️ Aufnahme starten", type="primary", use_container_width=True):
-            st.session_state.selected_task_id = task_id
-            st.session_state.phase = "record"
-            st.session_state.recording_start = datetime.now()
-            st.rerun()
+
 
 
 # =============================================================================
