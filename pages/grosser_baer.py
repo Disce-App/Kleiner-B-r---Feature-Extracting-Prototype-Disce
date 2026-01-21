@@ -242,29 +242,19 @@ elif st.session_state.phase == "feedback":
         with st.spinner("🔍 Analysiere deine Aufnahme..."):
             
             if MOCK_MODE:
-                # Mock: Verwende eingegebenen Text, aber echte Kleiner Bär Analyse!
+                # Mock: Verwende eingegebenen Text, Feedback ist simuliert
                 transcript_text = st.session_state.transcript or "Dies ist ein Mock-Transkript für Testing."
-    
-                # Importiere Kleiner Bär für echte Analyse
-                from kleiner_baer import extract_features
-    
-                # Echte Feature-Extraktion auf den Text
-                features = extract_features(transcript_text)
-                
-                # Features in Session speichern für Anzeige
-                st.session_state.kleiner_baer_features = features
-    
-                # Feedback erstellen (noch Mock, aber mit echten Features)
+
                 feedback = generate_feedback(
                     transcript=transcript_text,
                     task=task,
                     prosody=None,
-                    use_mock=True  # Feedback bleibt Mock, aber Features sind echt
+                    use_mock=True
                 )
 
-                
                 st.session_state.feedback_result = feedback
                 st.session_state.transcript_text = transcript_text
+
                 
             else:
                 # Echter Modus: Audio verarbeiten
@@ -289,12 +279,6 @@ elif st.session_state.phase == "feedback":
     # Ergebnisse anzeigen
     feedback = st.session_state.feedback_result
     transcript_text = st.session_state.get("transcript_text", "")
-
-
-    # Kleiner Bär Features anzeigen (wenn vorhanden)
-    if st.session_state.get("kleiner_baer_features"):
-        with st.expander("### 🐻 Kleiner Bär Analyse", expanded=True):
-            st.json(st.session_state.kleiner_baer_features)
 
     
     # Tabs für verschiedene Ansichten
