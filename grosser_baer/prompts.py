@@ -218,7 +218,7 @@ def build_feedback_prompt(
         transcript=transcript,
         cefr_label=metrics.get("cefr", {}).get("label", "?"),
         cefr_score=metrics.get("cefr", {}).get("score", 0),
-        lexical_diversity=metrics.get("dims", {}).get("lexical_diversity", 0),
+        lexical_diversity=metrics.get("metrics_summary", {}).get("dims", {}).get("lexical_diversity", 0),
         grammar_accuracy=metrics.get("dims", {}).get("grammar_accuracy", 0),
         register_match=metrics.get("disce_metrics", {}).get("level_match", 0),
         avg_sentence_length=metrics.get("text_stats", {}).get("avg_sentence_length", 0),
