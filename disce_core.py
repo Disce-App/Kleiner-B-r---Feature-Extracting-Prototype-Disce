@@ -19,8 +19,8 @@ from features_viewer import (
     punctuation_features,
     lix_index,
     modal_particle_features,
-    word_frequency_features,      # ✅ NEU
-    get_rare_words_list,          # ✅ NEU
+    word_frequency_features,
+    get_rare_words_list,
     passive_voice_features,
     negation_quantifier_features,
     dependency_tree_features,
@@ -29,10 +29,11 @@ from features_viewer import (
     estimate_cefr_score_from_dims,
     estimate_cefr_label_from_dims,
     verb_mood_features,
-    CONNECTOR_LIST,               # ✅ NEU
-    MODAL_PARTICLES,              # ✅ NEU
+    CONNECTOR_LIST,
+    MODAL_PARTICLES,
     mean,
 )
+
 
 def build_sentence_data(sentences, tagged_sentences, dep_tree):
     sentence_texts = [
@@ -43,7 +44,6 @@ def build_sentence_data(sentences, tagged_sentences, dep_tree):
     tree_depths = None
     if dep_tree is not None:
         tree_depths = dep_tree.get("sent_tree_depths")
-        # Keine harte Längen-Gleichheit mehr erwarten
 
     sentence_data = []
     for i, (sent_tokens, tagged) in enumerate(zip(sentences, tagged_sentences)):
@@ -81,17 +81,10 @@ def build_sentence_data(sentences, tagged_sentences, dep_tree):
 def select_hotspots(sentence_data, max_per_type=3, max_total=10):
     """
     Wählt Sätze aus, die für Feedback & Übungen spannend sind.
-
-    Heuristiken:
-    - long_sentence: Top-N nach Länge
-    - deep_tree: Top-N nach Baumtiefe
-    - low_cohesion_no_connectors: keine Konnektoren, aber lang
-    - many_modal_particles: viele Modalpartikeln (informeller Ton)
     """
     if not sentence_data:
         return []
 
-    # Gründe pro Satzindex sammeln
     reasons_by_index = {d["index"]: [] for d in sentence_data}
 
     # 1) Lange Sätze
@@ -99,23 +92,22 @@ def select_hotspots(sentence_data, max_per_type=3, max_total=10):
     for d in sorted_by_length[:max_per_type]:
         reasons_by_index[d["index"]].append("long_sentence")
 
-    # 2) Tiefe Sätze (nur wenn Baumtiefe vorhanden)
+    # 2) Tiefe Sätze
     with_depth = [d for d in sentence_data if d.get("tree_depth") is not None]
     sorted_by_depth = sorted(with_depth, key=lambda d: d["tree_depth"], reverse=True)
     for d in sorted_by_depth[:max_per_type]:
         reasons_by_index[d["index"]].append("deep_tree")
 
-    # 3) Kohäsions-Schwachstellen: lange Sätze ohne Konnektoren
+    # 3) Kohäsions-Schwachstellen
     for d in sentence_data:
         if d["connector_count"] == 0 and d["length"] >= 15:
             reasons_by_index[d["index"]].append("low_cohesion_no_connectors")
 
-    # 4) Informelle Sätze: viele Modalpartikeln
+    # 4) Informelle Sätze
     for d in sentence_data:
         if d["modal_particle_count"] >= 2:
             reasons_by_index[d["index"]].append("many_modal_particles")
 
-    # Hotspots zusammenbauen
     hotspots = []
     for d in sentence_data:
         reasons = reasons_by_index[d["index"]]
@@ -134,7 +126,6 @@ def select_hotspots(sentence_data, max_per_type=3, max_total=10):
         }
         hotspots.append(hotspot)
 
-    # Nach Wichtigkeit sortieren (zuerst viele Gründe, dann Länge)
     hotspots.sort(
         key=lambda h: (len(h["reasons"]), h["features"]["length"]),
         reverse=True,
@@ -188,7 +179,7 @@ def build_metrics_summary(
             "score": cefr_score,
             "label": cefr_label,
         },
-        "dims": dim_scores,  # already 0–1 normalized
+        "dims": dim_scores,
         "text_stats": {
             "num_sentences": num_sentences,
             "num_tokens": num_tokens,
@@ -220,11 +211,7 @@ def build_metrics_summary(
         "style": {
             "register_informality": dim_scores.get("register_informality", 0.0),
             "written_formality": dim_scores.get("written_formality", 0.0),
-            "modal_particle_density_per_100_tokens": (
-                # aus mp_feats, derzeit nur im UI, optional später
-                # placeholder, wenn du willst
-                None
-            ),
+            "modal_particle_density_per_100_tokens": None,
             "subjunctive_share": mood_info.get("subjunctive_share", 0.0),
             "hedging_ratio": negq_info.get("hedging_ratio", 0.0),
             "assertion_strength": negq_info.get("assertion_strength", 0.0),
@@ -254,71 +241,49 @@ def build_metrics_summary(
 def build_disce_metrics(metrics_summary: dict, context: dict | None = None) -> dict:
     """
     Baut ein DisceMetrics-Objekt für den Bonsai-Visualizer.
-
-    context kann später Dinge enthalten wie:
-    - target_cefr (1-4)
-    - goal_progress (0-1)
-    - engagement_streak, milestones_achieved, ...
-    Für den Prototypen setzen wir vieles noch heuristisch.
     """
     context = context or {}
 
     dims = metrics_summary.get("dims", {})
     cefr = metrics_summary.get("cefr", {})
     text_stats = metrics_summary.get("text_stats", {})
-    discourse = metrics_summary.get("discourse", {})
-    style = metrics_summary.get("style", {})
-    readability = metrics_summary.get("readability", {})
-    negq = metrics_summary.get("negation_quantifiers", {})
 
-    # CEFR-Score 1..6 auf 1..4 (B1-B2-C1-C2) mappen
     raw_score = float(cefr.get("score", 3.5))
-    # 1..6 → 1..4
     cefr_level = int(round(1 + (raw_score - 2.5) * (3 / 3.5)))
     cefr_level = max(1, min(4, cefr_level))
 
-    # Schreib-spezifische Scores aus Dims
     writing_score = float(dims.get("lexical_diversity", 0.7))
     cohesion_score = float(dims.get("cohesion", 0.4))
     difficulty = float(dims.get("text_difficulty", 0.5))
 
-    # Heuristik: "task_exam_fit" erst mal als Funktion von difficulty,
-    # später ersetzt durch prüfungsspezifische Rubrik.
-    task_exam_fit = 1.0 - abs(difficulty - 0.6)  # grob: ideal bei ~0.6
+    task_exam_fit = 1.0 - abs(difficulty - 0.6)
 
-    # Wenn noch keine echte Ziel-Progression existiert, nimm Textlänge/Komplexität
     goal_progress = context.get("goal_progress")
     if goal_progress is None:
-        # Sehr grobe Heuristik: mehr Text + mehr Komplexität → mehr "Fortschritt"
         ntok = text_stats.get("num_tokens", 0)
         synt_comp = float(dims.get("syntactic_complexity", 0.3))
         goal_progress = max(0.1, min(1.0, (ntok / 400.0) * 0.4 + synt_comp * 0.6))
 
-    # Engagement/Milestones können später aus Benutzerprofil kommen.
     engagement_streak = int(context.get("engagement_streak", 0))
     milestones_achieved = int(context.get("milestones_achieved", 0))
     session_completion_rate = float(context.get("session_completion_rate", 0.0))
     consistency_score = float(context.get("consistency_score", 0.0))
 
-    # Cross-skill / Readiness vorerst moderat setzen
     cross_skill_correlation = float(context.get("cross_skill_correlation", 0.7))
     readiness_velocity = float(context.get("readiness_velocity", 0.4))
     weekly_delta = float(context.get("weekly_delta", 0.05))
 
-    # Für den Schreib-Prototypen: speaking/listening/reading erstmal an writing koppeln
     speaking_score = float(context.get("speaking_score", writing_score * 0.9))
     listening_score = float(context.get("listening_score", writing_score * 0.9))
     reading_score = float(context.get("reading_score", writing_score * 1.0))
 
-    # Readiness-Flags später aus Produktlogik;
-    # hier einfach False defaulten
     exam_ready = bool(context.get("exam_ready", False))
     presentation_ready = bool(context.get("presentation_ready", False))
     interview_ready = bool(context.get("interview_ready", False))
     authority_ready = bool(context.get("authority_ready", False))
 
     return {
-        "level_match": float(context.get("level_match", 0.7)),  # später: Distanz Ziel-CEFR vs. Ist
+        "level_match": float(context.get("level_match", 0.7)),
         "prosody_intelligibility": float(context.get("prosody_intelligibility", 0.7)),
         "sentence_cohesion": cohesion_score,
         "task_exam_fit": task_exam_fit,
@@ -346,15 +311,14 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     """
     Führt die komplette Analyse für ein Frontend aus und gibt ein Dict zurück,
     das leicht im UI verwendet werden kann.
-    use_grammar_check=False: es werden KEINE LanguageTool-Requests gemacht.
     """
     # 1) Tokenisierung & POS
     sentences = tokenize_and_split(text)
     tagged_sentences = pos_tag_sentences(sentences)
     num_sentences = len(tagged_sentences)
     num_tokens = count_tokens(tagged_sentences)
-    
-    # ✅ DEBUG: Erste 15 Tags für UI-Anzeige sammeln
+
+    # DEBUG: Erste 15 Tags für UI-Anzeige sammeln
     debug_tags = []
     for sent in tagged_sentences:
         for tok in sent:
@@ -363,15 +327,6 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
                 break
         if len(debug_tags) >= 15:
             break
-    
-    num_sentences = len(tagged_sentences)
-    num_tokens = count_tokens(tagged_sentences)
-
-    
-    # ========== END DEBUG ============================
-    
-    num_sentences = len(tagged_sentences)
-
 
     # 2) Grammatik (für PoC: standardmäßig ausgeschaltet)
     if use_grammar_check:
@@ -406,27 +361,27 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     punct_feats = punctuation_features(tagged_sentences)
     lix = lix_index(text, num_sentences, num_tokens)
     mp_feats = modal_particle_features(tagged_sentences)
-    
-    # 6) Wortfrequenz-Features ✅ NEU
+
+    # 6) Wortfrequenz-Features
     freq_feats = word_frequency_features(tagged_sentences)
     rare_words = get_rare_words_list(tagged_sentences)
 
-    # 6b) Morphologie-Features (Tempus/Kasus) ✅ NEU
+    # 6b) Morphologie-Features (Tempus/Kasus)
     morph_feats = morphology_features(tagged_sentences)
 
-    # 6c) Verb-Modus (Konjunktiv) ✅ NEU
+    # 6c) Verb-Modus (Konjunktiv)
     mood_feats = verb_mood_features(tagged_sentences)
 
-    # 6d) Passiv-Erkennung ✅ NEU
+    # 6d) Passiv-Erkennung
     passive_feats = passive_voice_features(tagged_sentences)
 
-    # 6e) Negation & Quantoren ✅ NEU
+    # 6e) Negation & Quantoren
     neg_quant_feats = negation_quantifier_features(tagged_sentences)
 
-    # 7) Dependency-Baumtiefe (spaCy) ✅ NEU
+    # 7) Dependency-Baumtiefe (spaCy)
     dep_tree = dependency_tree_features(text)
 
-    # 7b) Satzdaten + Hotspots (für LLM & UI) ✅ NEU
+    # 7b) Satzdaten + Hotspots (für LLM & UI)
     sentence_data = build_sentence_data(sentences, tagged_sentences, dep_tree)
     hotspots = select_hotspots(sentence_data)
 
@@ -447,14 +402,14 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         direct_speech=direct_speech,
         lix=lix,
         mp_feats=mp_feats,
-        freq_feats=freq_feats,  # ✅ NEU
-        dep_tree=dep_tree, 
+        freq_feats=freq_feats,
+        dep_tree=dep_tree,
     )
 
     cefr_score = estimate_cefr_score_from_dims(dim_scores)
     cefr_label = estimate_cefr_label_from_dims(dim_scores)
 
-    # 9) Kompaktes Metrics-Summary für LLM / Reports ✅ NEU
+    # 9) Kompaktes Metrics-Summary für LLM / Reports
     metrics_summary = build_metrics_summary(
         text=text,
         num_sentences=num_sentences,
@@ -505,13 +460,12 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         "morph_feats": morph_feats,
         "dep_tree": dep_tree,
         "debug_tags": debug_tags,
-        "mood_feats": mood_feats, 
-        "sentence_data": sentence_data, # ✅ NEU:
+        "mood_feats": mood_feats,
+        "sentence_data": sentence_data,
         "hotspots": hotspots,
         "metrics_summary": metrics_summary,
         "disce_metrics": disce_metrics,
     }
-
 
 
 # ============================================================
@@ -540,5 +494,3 @@ def analyze_text_for_llm(text: str, context: dict | None = None) -> dict:
         },
         "disce_metrics": ui_result.get("disce_metrics", {}),
     }
-
-
