@@ -97,17 +97,11 @@ with st.sidebar:
 if st.session_state.phase == "select":
     st.header("1️⃣ Wähle deine Sprechaufgabe")
     
-    # Task-Auswahl - Handle sowohl Liste als auch Dict
-    task_choices = get_task_choices()
+    # Task-Auswahl: get_task_choices() gibt Liste von (label, id) Tuples
+    task_choices_list = get_task_choices()
     
-    # Wenn es eine Liste ist, konvertiere zu Dict {label: id}
-    if isinstance(task_choices, list):
-        task_dict = {}
-        for tid in task_choices:
-            t = get_task(tid)
-            label = f"{t.get('scenario', tid)} ({t.get('target_register', '?')})"
-            task_dict[label] = tid
-        task_choices = task_dict
+    # Baue ein Dict: {label: id}
+    task_choices = {label: tid for label, tid in task_choices_list}
     
     selected_label = st.selectbox(
         "Welche Situation möchtest du üben?",
@@ -117,6 +111,7 @@ if st.session_state.phase == "select":
     
     task_id = task_choices[selected_label]
     task = get_task(task_id)
+
 
 
 
