@@ -242,16 +242,26 @@ elif st.session_state.phase == "feedback":
         with st.spinner("🔍 Analysiere deine Aufnahme..."):
             
             if MOCK_MODE:
-                # Mock: Verwende eingegebenen Text
+                # Mock: Verwende eingegebenen Text, aber echte Kleiner Bär Analyse!
                 transcript_text = st.session_state.transcript or "Dies ist ein Mock-Transkript für Testing."
+    
+                # Importiere Kleiner Bär für echte Analyse
+                from kleiner_baer import extract_features
+    
+                # Echte Feature-Extraktion auf den Text
+                features = extract_features(transcript_text)
                 
-                # Mock-Feedback erstellen
+                # Features in Session speichern für Anzeige
+                st.session_state.kleiner_baer_features = features
+    
+                # Feedback erstellen (noch Mock, aber mit echten Features)
                 feedback = generate_feedback(
                     transcript=transcript_text,
                     task=task,
                     prosody=None,
-                    use_mock=True
+                    use_mock=True  # Feedback bleibt Mock, aber Features sind echt
                 )
+
                 
                 st.session_state.feedback_result = feedback
                 st.session_state.transcript_text = transcript_text
