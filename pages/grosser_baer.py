@@ -111,6 +111,29 @@ if st.session_state.phase == "select":
     
     task_id = task_choices[selected_label]
     task = get_task(task_id)
+    
+    # Task-Details anzeigen
+    with st.expander("📋 Aufgabendetails", expanded=True):
+        st.markdown(f"**Szenario:** {task['situation']}")
+        st.markdown(f"**Zielregister:** {task['register']}")
+        st.markdown(f"**Zeitrahmen:** {task['time_seconds']} Sekunden")
+        st.markdown("---")
+        st.markdown("**Deine Aufgabe:**")
+        st.info(task["task"])
+        
+        if task.get("example_phrases"):
+            st.markdown("**Beispielphrasen:**")
+            for phrase in task["example_phrases"]:
+                st.markdown(f"- _{phrase}_")
+    
+    # Weiter-Button
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🎙️ Aufnahme starten", type="primary", use_container_width=True):
+            st.session_state.selected_task_id = task_id
+            st.session_state.phase = "record"
+            st.session_state.recording_start = datetime.now()
+            st.rerun()
 
 
 
