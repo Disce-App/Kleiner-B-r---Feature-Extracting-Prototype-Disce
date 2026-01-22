@@ -242,12 +242,12 @@ if st.session_state.phase == "select":
     with st.expander("💡 Beispiele für Lernziele", expanded=False):
         st.markdown(
             """
-            - „Ich möchte flüssiger sprechen, ohne lange Pausen."
-            - „Ich will formeller klingen – weniger umgangssprachlich."
-            - „Ich übe, meine Argumente klar zu strukturieren."
-            - „Ich möchte Konjunktiv II sicher verwenden."
-            - „Ich will meine Nervosität in den Griff bekommen."
-            - „Ich übe, höflich aber bestimmt zu formulieren."
+- *Ich möchte flüssiger sprechen, ohne lange Pausen.*
+- *Ich will formeller klingen – weniger umgangssprachlich.*
+- *Ich übe, meine Argumente klar zu strukturieren.*
+- *Ich möchte Konjunktiv II sicher verwenden.*
+- *Ich will meine Nervosität in den Griff bekommen.*
+- *Ich übe, höflich aber bestimmt zu formulieren.*
             """
         )
 
@@ -255,7 +255,7 @@ if st.session_state.phase == "select":
         "Was ist dein Ziel für diese Übung?",
         value=st.session_state.learner_goal,
         height=80,
-        placeholder="z.B. „Ich möchte heute üben, meine Punkte klar und strukturiert zu präsentieren."",
+        placeholder="z.B. Ich möchte heute üben, meine Punkte klar und strukturiert zu präsentieren.",
         key="learner_goal_input",
     )
 
@@ -269,12 +269,12 @@ if st.session_state.phase == "select":
             "Kontext (optional):",
             value=st.session_state.learner_context,
             height=60,
-            placeholder="z.B. „Ich habe nächste Woche ein echtes Meeting mit meinem Chef."",
+            placeholder="z.B. Ich habe nächste Woche ein echtes Meeting mit meinem Chef.",
             key="learner_context_input",
         )
-    
-    # Falls Expander nicht geöffnet, brauchen wir trotzdem den Wert
-    if "learner_context_input" not in dir():
+
+    # Falls Expander nicht geöffnet, Default-Wert
+    if "learner_context_input" not in st.session_state:
         learner_context_input = st.session_state.learner_context
 
     # Meta-Prompt aus Task anzeigen (falls vorhanden)
@@ -286,14 +286,15 @@ if st.session_state.phase == "select":
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         # Button-Text anpassen je nachdem ob Ziel eingegeben
-        button_text = "🎙️ Aufnahme starten"
         if not learner_goal_input.strip():
             st.caption("💡 Tipp: Ein konkretes Lernziel hilft dir, fokussiert zu bleiben.")
-        
-        if st.button(button_text, type="primary", use_container_width=True):
+
+        if st.button("🎙️ Aufnahme starten", type="primary", use_container_width=True):
             # Ziel und Kontext speichern
             st.session_state.learner_goal = learner_goal_input.strip()
-            st.session_state.learner_context = learner_context_input.strip() if learner_context_input else ""
+            st.session_state.learner_context = (
+                st.session_state.get("learner_context_input", "").strip()
+            )
             st.session_state.selected_task_id = task_id
             st.session_state.phase = "record"
             st.session_state.recording_start = datetime.now()
@@ -607,7 +608,7 @@ elif st.session_state.phase == "feedback":
             # Mock: Zähle typische Füllwörter
             filler_words = ["ähm", "also", "quasi", "sozusagen", "halt", "eigentlich"]
             filler_count = sum(transcript_text.lower().count(fw) for fw in filler_words)
-            st.metric("Füllwörter", filler_count, help="'ähm', 'also', 'quasi', etc.")
+            st.metric("Füllwörter", filler_count, help="ähm, also, quasi, etc.")
 
         with col3:
             st.metric("Flüssigkeit", "–" if MOCK_MODE else "75%")
@@ -642,7 +643,7 @@ elif st.session_state.phase == "feedback":
 
         if MOCK_MODE:
             st.caption(
-                "ℹ️ Mock-Modus: Audio-Prosidie ist noch simuliert – "
+                "ℹ️ Mock-Modus: Audio-Prosodie ist noch simuliert – "
                 "Textmetriken sind bereits echt."
             )
 
@@ -686,8 +687,11 @@ elif st.session_state.phase == "feedback":
 """
         # Falls Lernziel vorhanden, zusätzliche Frage
         if st.session_state.learner_goal:
-            reflection_prompts += f"\n- **Bezogen auf dein Ziel** („{st.session_state.learner_goal}"): Wie gut hast du es erreicht?"
-        
+            reflection_prompts += (
+                f"\n- **Bezogen auf dein Ziel** "
+                f"({st.session_state.learner_goal}): Wie gut hast du es erreicht?"
+            )
+
         st.markdown(reflection_prompts)
 
     # Reflexions-Textfeld
