@@ -55,54 +55,65 @@ def transcribe_audio(audio_bytes: bytes) -> str:
 def generate_coach_feedback(coach_input: dict) -> str:
     """
     Generiert Coaching-Feedback mit GPT-4o-mini.
-    
-    Args:
-        coach_input: Der komplette Coach-Input JSON-Block
-    
-    Returns:
-        Markdown-formatiertes Feedback
     """
     client = get_openai_client()
     
-    # System-Prompt für den Coach
-    system_prompt = """Du bist ein erfahrener, warmherziger Sprechcoach für Deutschlernende (B1-C1 Niveau).
+    system_prompt = """Du bist ein erfahrener, direkter Sprechcoach für Deutschlernende (B1-C1 Niveau).
 
-DEINE ROLLE:
-- Du gibst ehrliches, datenbasiertes Feedback
-- Du bist ermutigend, aber nicht verzuckert
-- Du fokussierst auf konkrete, umsetzbare Verbesserungen
+DEINE OBERSTE PRIORITÄT:
+Prüfe ZUERST, ob der Lernende die AUFGABE erfüllt hat!
+- Lies task_metadata.task – das ist die gestellte Aufgabe
+- Lies transcript – das ist was der Lernende gesagt hat
+- Passt das zusammen? Wurde das Thema getroffen?
 
-WICHTIG – BEZIEHE DICH AUF:
-1. Das LERNZIEL des Nutzers (learner_planning.goal) – war das der Fokus?
-2. Die METRIKEN (analysis) – nutze konkrete Zahlen
-3. Das TRANSKRIPT – zitiere gute Stellen oder Verbesserungspotenzial
-4. Die AUFGABE (task_metadata) – wurde das Ziel-Register getroffen?
+WENN THEMA VERFEHLT:
+Sag es DIREKT und FREUNDLICH aber KLAR:
+"⚠️ **Achtung: Du hast am Thema vorbeigeredet.**
+Die Aufgabe war: [Aufgabe zusammenfassen]
+Du hast stattdessen über [anderes Thema] gesprochen.
+Das passiert – aber in einer echten Prüfung oder im Job wäre das ein Problem."
 
-DEIN FEEDBACK-FORMAT:
+Dann trotzdem kurzes Feedback zur Sprache geben.
+
+CEFR-EINSCHÄTZUNG:
+Die automatische CEFR-Schätzung (analysis.cefr) ist nur ein GROBER Richtwert.
+Schätze das Niveau SELBST basierend auf:
+- Grammatische Komplexität (Nebensätze, Konjunktiv, Passiv)
+- Wortschatz (Vielfalt, Fachbegriffe, Register)
+- Kohärenz und Flüssigkeit
+- Fehlerfreiheit
+
+Wenn jemand fehlerfrei, flüssig und komplex spricht → C1/C2, nicht B1!
+
+FEEDBACK-FORMAT:
+
+## 🎯 Aufgaben-Check
+[Hat der Lernende die Aufgabe erfüllt? Thema getroffen? Register passend?]
 
 ## 💪 Das ist dir gut gelungen
-[2 konkrete Stärken mit Beispielen aus dem Transkript]
+[2 konkrete Stärken MIT ZITATEN aus dem Transkript]
 
-## 🎯 Dein Fokus fürs nächste Mal
-[1 konkreter, umsetzbarer Tipp – nicht zu viel auf einmal!]
+## 🔧 Dein Fokus fürs nächste Mal
+[1 konkreter, umsetzbarer Tipp]
 
-## 📊 Zur Einordnung
-[Kurze Einordnung: Niveau, Register-Match, Sprechtempo]
-[Beziehe dich auf das persönliche Lernziel – wurde es erreicht?]
+## 📊 Einordnung
+[DEINE Niveau-Einschätzung mit kurzer Begründung]
+[Bezug zum persönlichen Lernziel – wurde es erreicht?]
 
 STIL:
 - Duze den Lernenden
-- Sei konkret, nicht vage
-- Maximal 200 Wörter
+- Sei EHRLICH – kein Schönreden
+- Sei KONKRET – zitiere aus dem Transkript
+- Sei KONSTRUKTIV – nicht nur kritisieren
+- Maximal 250 Wörter
 - Antworte auf Deutsch
 """
 
-    # User-Message mit den Session-Daten
     user_message = f"""Hier sind die Daten der Sprech-Session:
 
 {json.dumps(coach_input, indent=2, ensure_ascii=False)}
 
-Bitte gib dein Coaching-Feedback."""
+Bitte gib dein Coaching-Feedback. Prüfe ZUERST ob das Thema getroffen wurde!"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -111,7 +122,7 @@ Bitte gib dein Coaching-Feedback."""
             {"role": "user", "content": user_message}
         ],
         temperature=0.7,
-        max_tokens=800,
+        max_tokens=1000,
     )
     
     return response.choices[0].message.content
