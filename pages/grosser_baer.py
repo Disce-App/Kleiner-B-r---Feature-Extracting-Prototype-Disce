@@ -64,6 +64,13 @@ if "coach_input" not in st.session_state:
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
+# Neu: Reflexionsfeld
+if "reflection_text" not in st.session_state:
+    st.session_state.reflection_text = ""
+
+if "reflection_saved" not in st.session_state:
+    st.session_state.reflection_saved = False
+
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -80,6 +87,8 @@ def reset_session():
     st.session_state.kleiner_baer_result = None
     st.session_state.coach_input = None
     st.session_state.session_id = str(uuid.uuid4())
+    st.session_state.reflection_text = ""
+    st.session_state.reflection_saved = False
 
 
 def build_coach_input(
@@ -88,6 +97,7 @@ def build_coach_input(
     duration: float,
     mode: str,
     kleiner_baer_result: dict,
+    reflection: str = "",
 ) -> dict:
     """Baut den JSON-Block, der später an die LLM-Coach-API geht."""
     now = datetime.now()
@@ -98,30 +108,40 @@ def build_coach_input(
             "task_id": st.session_state.selected_task_id,
             "situation": task.get("situation"),
             "task": task.get("task"),
-            "target_level": task.get("level"),          # falls vorhanden
+            "target_level": task.get("level"),
             "target_register": task.get("register"),
             "time_limit_seconds": task.get("time_seconds"),
         },
         "session_metadata": {
             "session_id": st.session_state.get("session_id"),
-            "mode": mode,  # "mock_speaking" oder "speaking"
+            "mode": mode,
             "started_at": recording_start.isoformat() if recording_start else None,
             "ended_at": now.isoformat(),
             "duration_seconds": duration,
         },
         "transcript": transcript_text,
         "analysis": {
-            # Schicht 1: deterministische Analyse (CAF, Kohäsion, Register-Indikatoren)
             "layer1_deterministic": kleiner_baer_result.get("metrics_summary", {}),
-            # Schicht 2: Azure (Prosodie, Pronunciation) – später befüllt
             "layer2_azure": None,
-            # CEFR + KPIs
             "cefr": kleiner_baer_result.get("cefr", {}),
             "home_kpis": kleiner_baer_result.get("disce_metrics", {}),
-            # Satz-Hotspots für Mikrofeedback
             "hotspots": kleiner_baer_result.get("hotspots", []),
         },
+        # Neu: Reflexion der Lernenden
+        "reflection": {
+            "text": reflection,
+            "submitted_at": now.isoformat() if reflection else None,
+        },
     }
+
+
+def update_coach_input_with_reflection(reflection_text: str):
+    """Aktualisiert den coach_input mit der Reflexion."""
+    if st.session_state.coach_input:
+        st.session_state.coach_input["reflection"] = {
+            "text": reflection_text,
+            "submitted_at": datetime.now().isoformat(),
+        }
 
 
 # =============================================================================
@@ -291,7 +311,7 @@ elif st.session_state.phase == "record":
 
 
 # =============================================================================
-# PHASE 3: FEEDBACK
+# PHASE 3: FEEDBACK + REFLEXION
 # =============================================================================
 
 elif st.session_state.phase == "feedback":
@@ -339,6 +359,7 @@ elif st.session_state.phase == "feedback":
                     duration=duration,
                     mode="mock_speaking",
                     kleiner_baer_result=kb_result,
+                    reflection="",  # wird später ergänzt
                 )
                 st.session_state.coach_input = coach_input
 
@@ -385,6 +406,7 @@ elif st.session_state.phase == "feedback":
                     duration=duration,
                     mode="speaking",
                     kleiner_baer_result=kb_result,
+                    reflection="",
                 )
                 st.session_state.coach_input = coach_input
 
@@ -546,7 +568,54 @@ elif st.session_state.phase == "feedback":
                 "Bitte zuerst eine Aufgabe abschließen."
             )
 
-    # Aktionen
+    # =========================================================================
+    # REFLEXIONSFELD (nach den Tabs)
+    # =========================================================================
+    st.markdown("---")
+    st.header("4️⃣ Deine Reflexion")
+
+    st.markdown(
+        "Nimm dir einen Moment, um über deine Übung nachzudenken. "
+        "Das hilft dir, das Gelernte zu verankern."
+    )
+
+    # Leitfragen als Inspiration
+    with st.expander("💡 Leitfragen zur Reflexion", expanded=False):
+        st.markdown(
+            """
+            - **Was ist mir gut gelungen?** (z.B. Wortwahl, Struktur, Flüssigkeit)
+            - **Was war schwierig?** (z.B. ein bestimmtes Wort, die Satzstellung, das Tempo)
+            - **Was will ich beim nächsten Mal anders machen?**
+            - **Welchen konkreten Aspekt übe ich als Nächstes?**
+            """
+        )
+
+    # Reflexions-Textfeld
+    reflection_input = st.text_area(
+        "Deine Gedanken:",
+        value=st.session_state.reflection_text,
+        height=120,
+        placeholder="Was nimmst du aus dieser Übung mit? Was machst du nächstes Mal anders?",
+        key="reflection_input",
+    )
+
+    # Speichern-Button für Reflexion
+    col_ref1, col_ref2 = st.columns([3, 1])
+    with col_ref2:
+        if st.button("✅ Reflexion speichern", type="primary", use_container_width=True):
+            st.session_state.reflection_text = reflection_input
+            update_coach_input_with_reflection(reflection_input)
+            st.session_state.reflection_saved = True
+            st.rerun()
+
+    # Bestätigung anzeigen
+    if st.session_state.reflection_saved and st.session_state.reflection_text:
+        st.success("✅ Reflexion gespeichert!")
+        st.markdown(f"**Deine Reflexion:** _{st.session_state.reflection_text}_")
+
+    # =========================================================================
+    # AKTIONEN
+    # =========================================================================
     st.markdown("---")
 
     col1, col2, col3 = st.columns(3)
@@ -559,6 +628,8 @@ elif st.session_state.phase == "feedback":
             st.session_state.feedback_result = None
             st.session_state.kleiner_baer_result = None
             st.session_state.coach_input = None
+            st.session_state.reflection_text = ""
+            st.session_state.reflection_saved = False
             st.rerun()
 
     with col2:
@@ -568,6 +639,9 @@ elif st.session_state.phase == "feedback":
 
     with col3:
         if st.button("💾 Session speichern"):
+            # Stelle sicher, dass Reflexion im coach_input ist
+            if st.session_state.reflection_text:
+                update_coach_input_with_reflection(st.session_state.reflection_text)
             st.info("Session-Export kommt in v0.2!")
 
 
