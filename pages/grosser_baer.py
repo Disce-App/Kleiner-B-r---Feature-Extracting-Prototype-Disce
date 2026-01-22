@@ -6,8 +6,10 @@ Streamlit-Seite für Audio-Aufnahme und Feedback.
 
 import uuid
 from datetime import datetime
+import json
 
 import streamlit as st
+import requests
 
 # Großer Bär Imports
 from grosser_baer import (
@@ -21,6 +23,13 @@ from grosser_baer import (
 
 # Kleiner Bär – deterministische Textanalyse
 from disce_core import analyze_text_for_llm
+
+
+# =============================================================================
+# KONFIGURATION
+# =============================================================================
+
+MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/2f65yl8ut90pnq2jhbi1l1ft2ytecceh"
 
 
 # =============================================================================
@@ -85,6 +94,10 @@ if "user_code" not in st.session_state:
 if "user_code_confirmed" not in st.session_state:
     st.session_state.user_code_confirmed = False
 
+# Session-Speicherung
+if "session_saved" not in st.session_state:
+    st.session_state.session_saved = False
+
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -128,6 +141,7 @@ def reset_session():
     st.session_state.learner_context = ""
     st.session_state.reflection_text = ""
     st.session_state.reflection_saved = False
+    st.session_state.session_saved = False
     # user_code bleibt erhalten!
 
 
@@ -202,6 +216,70 @@ def update_coach_input_with_reflection(reflection_text: str):
             "text": reflection_text,
             "submitted_at": datetime.now().isoformat(),
         }
+
+
+def send_session_to_airtable() -> tuple[bool, str]:
+    """
+    Sendet die Session-Daten an Make Webhook → Airtable.
+    Gibt (success, message) zurück.
+    """
+    try:
+        # Daten aus Session State sammeln
+        coach_input = st.session_state.get("coach_input", {})
+        kleiner_baer_result = st.session_state.get("kleiner_baer_result", {})
+        task = get_task(st.session_state.selected_task_id) if st.session_state.selected_task_id else {}
+        
+        # CEFR-Daten extrahieren
+        cefr_data = kleiner_baer_result.get("cefr", {})
+        cefr_label = cefr_data.get("label", "")
+        cefr_score = cefr_data.get("score", 0.0)
+        
+        # Session-Metadaten
+        session_meta = coach_input.get("session_metadata", {})
+        task_meta = coach_input.get("task_metadata", {})
+        learner_planning = coach_input.get("learner_planning", {})
+        reflection = coach_input.get("reflection", {})
+        
+        # Payload für Airtable (flache Struktur)
+        payload = {
+            "session_id": st.session_state.get("session_id", ""),
+            "user_code": st.session_state.get("user_code", "ANON"),
+            "created_at": datetime.now().isoformat(),
+            "mode": session_meta.get("mode", "unknown"),
+            "task_id": task_meta.get("task_id", ""),
+            "task_situation": task_meta.get("situation", ""),
+            "target_register": task_meta.get("target_register", ""),
+            "target_level": task_meta.get("target_level", ""),
+            "time_limit_seconds": task_meta.get("time_limit_seconds", 0),
+            "duration_seconds": session_meta.get("duration_seconds", 0),
+            "learner_goal": learner_planning.get("goal", ""),
+            "learner_context": learner_planning.get("context", ""),
+            "transcript": coach_input.get("transcript", ""),
+            "reflection": reflection.get("text", ""),
+            "cefr_label": cefr_label,
+            "cefr_score": cefr_score,
+            "metrics_json": json.dumps(kleiner_baer_result.get("disce_metrics", {})),
+        }
+        
+        # An Make Webhook senden
+        response = requests.post(
+            MAKE_WEBHOOK_URL,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10,
+        )
+        
+        if response.status_code == 200:
+            return True, "Session erfolgreich gespeichert!"
+        else:
+            return False, f"Fehler beim Speichern: HTTP {response.status_code}"
+            
+    except requests.exceptions.Timeout:
+        return False, "Timeout: Server antwortet nicht."
+    except requests.exceptions.RequestException as e:
+        return False, f"Verbindungsfehler: {str(e)}"
+    except Exception as e:
+        return False, f"Fehler: {str(e)}"
 
 
 # =============================================================================
@@ -290,7 +368,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption("Großer Bär v0.1 – Prototype")
+    st.caption("Großer Bär v0.2 – Prototype")
 
 
 # =============================================================================
@@ -852,6 +930,7 @@ elif st.session_state.phase == "feedback":
             st.session_state.coach_input = None
             st.session_state.reflection_text = ""
             st.session_state.reflection_saved = False
+            st.session_state.session_saved = False
             st.rerun()
 
     with col2:
@@ -860,11 +939,25 @@ elif st.session_state.phase == "feedback":
             st.rerun()
 
     with col3:
-        if st.button("💾 Session speichern"):
-            # Stelle sicher, dass Reflexion im coach_input ist
-            if st.session_state.reflection_text:
-                update_coach_input_with_reflection(st.session_state.reflection_text)
-            st.info("Session-Export kommt in v0.2!")
+        # Session speichern Button mit Webhook-Anbindung
+        if st.session_state.session_saved:
+            st.success("✅ Gespeichert!")
+        else:
+            if st.button("💾 Session speichern", type="primary"):
+                # Reflexion aktualisieren falls vorhanden
+                if reflection_input:
+                    st.session_state.reflection_text = reflection_input
+                    update_coach_input_with_reflection(reflection_input)
+                
+                # An Airtable senden
+                with st.spinner("Speichere Session..."):
+                    success, message = send_session_to_airtable()
+                
+                if success:
+                    st.session_state.session_saved = True
+                    st.rerun()
+                else:
+                    st.error(f"❌ {message}")
 
 
 # =============================================================================
