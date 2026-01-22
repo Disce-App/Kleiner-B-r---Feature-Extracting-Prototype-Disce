@@ -5,7 +5,7 @@ from pathlib import Path
 import requests
 from somajo import SoMaJo
 from HanTa import HanoverTagger as ht
-from wordfreq import zipf_frequency 
+from wordfreq import zipf_frequency
 
 LANGUAGETOOL_API_URL = "https://api.languagetool.org/v2/check"
 
@@ -69,10 +69,11 @@ def check_grammar_with_languagetool(text: str):
         return response.json().get("matches", [])
     except RequestException as e:
         # Für Prototyp: nicht crashen, sondern ohne Grammatikfehler weiterrechnen
-        print(f"[WARN] LanguageTool nicht erreichbar oder Timeout ({e}); "
-              f"setze num_issues = 0.")
+        print(
+            f"[WARN] LanguageTool nicht erreichbar oder Timeout ({e}); "
+            f"setze num_issues = 0."
+        )
         return []
-
 
 
 # --- Komplexität ------------------------------------------------------------
@@ -121,7 +122,6 @@ def estimated_subclauses(tagged_sentences):
                 finite_count += 1
         counts.append(min(subord_count, finite_count))
     return counts
-
 
 
 def complex_nps_per_sentence(tagged_sentences):
@@ -208,7 +208,7 @@ def moving_average_ttr(tokens, window_size=50):
 
     ttrs = []
     for start in range(0, n - window_size + 1):
-        window = tokens[start:start + window_size]
+        window = tokens[start : start + window_size]
         ttrs.append(len(set(window)) / float(window_size))
 
     return {
@@ -222,16 +222,17 @@ def moving_average_ttr(tokens, window_size=50):
 
 # --- Passiv -----------------------------------------------------------------
 
+
 def passive_voice_features(tagged_sentences):
     """
     Erkennt Passiv-Konstruktionen im Deutschen regelbasiert.
-    
+
     Vorgangspassiv: werden + Partizip II ("wird geschrieben")
     Zustandspassiv: sein + Partizip II ("ist geschrieben")
     Modalpassiv: Modalverb + Partizip II + werden ("muss geschrieben werden")
     """
     nlp = get_spacy_nlp()
-    
+
     # Rekonstruiere Text
     words = []
     for sent in tagged_sentences:
@@ -239,64 +240,122 @@ def passive_voice_features(tagged_sentences):
             if len(tok) >= 1:
                 words.append(tok[0])
     text = " ".join(words)
-    
+
     doc = nlp(text)
-    
+
     passive_counts = {
-        "vorgangspassiv": 0,      # werden + PP
-        "zustandspassiv": 0,      # sein + PP
-        "modalpassiv": 0,         # Modalverb + PP + werden
+        "vorgangspassiv": 0,  # werden + PP
+        "zustandspassiv": 0,  # sein + PP
+        "modalpassiv": 0,  # Modalverb + PP + werden
     }
-    
+
     passive_instances = []  # Für Debug/Anzeige
-    total_clauses = 0       # Geschätzte Anzahl an Teilsätzen
-    
+    total_clauses = 0  # Geschätzte Anzahl an Teilsätzen
+
     # Hilfslexikon
-    werden_forms = {"werden", "wird", "wirst", "werdet", "wurde", "wurdest", 
-                    "wurden", "wurdet", "werde", "würde", "würdest", "würden", "würdet"}
-    sein_forms = {"sein", "ist", "bist", "sind", "seid", "war", "warst", 
-                  "waren", "wart", "sei", "seist", "seien", "seid", "wäre", 
-                  "wärst", "wären", "wärt"}
-    modal_verbs = {"können", "müssen", "sollen", "wollen", "dürfen", "mögen",
-                   "kann", "muss", "soll", "will", "darf", "mag",
-                   "kannst", "musst", "sollst", "willst", "darfst", "magst",
-                   "könnt", "müsst", "sollt", "wollt", "dürft", "mögt",
-                   "konnte", "musste", "sollte", "wollte", "durfte", "mochte",
-                   "konnten", "mussten", "sollten", "wollten", "durften", "mochten"}
-    
+    werden_forms = {
+        "werden",
+        "wird",
+        "wirst",
+        "werdet",
+        "wurde",
+        "wurdest",
+        "wurden",
+        "wurdet",
+        "werde",
+        "würde",
+        "würdest",
+        "würden",
+        "würdet",
+    }
+    sein_forms = {
+        "sein",
+        "ist",
+        "bist",
+        "sind",
+        "seid",
+        "war",
+        "warst",
+        "waren",
+        "wart",
+        "sei",
+        "seist",
+        "seien",
+        "seid",
+        "wäre",
+        "wärst",
+        "wären",
+        "wärt",
+    }
+    modal_verbs = {
+        "können",
+        "müssen",
+        "sollen",
+        "wollen",
+        "dürfen",
+        "mögen",
+        "kann",
+        "muss",
+        "soll",
+        "will",
+        "darf",
+        "mag",
+        "kannst",
+        "musst",
+        "sollst",
+        "willst",
+        "darfst",
+        "magst",
+        "könnt",
+        "müsst",
+        "sollt",
+        "wollt",
+        "dürft",
+        "mögt",
+        "konnte",
+        "musste",
+        "sollte",
+        "wollte",
+        "durfte",
+        "mochte",
+        "konnten",
+        "mussten",
+        "sollten",
+        "wollten",
+        "durften",
+        "mochten",
+    }
+
     # Zähle Teilsätze (grob: finite Verben)
     for token in doc:
         verbform = token.morph.get("VerbForm")
         if verbform and "Fin" in verbform:
             total_clauses += 1
-    
+
     # Suche nach Passiv-Mustern
     for sent in doc.sents:
         tokens = list(sent)
-        
+
         for i, token in enumerate(tokens):
-            token_lower = token.text.lower()
-            
             # Partizip II finden
             verbform = token.morph.get("VerbForm")
             is_participle = verbform and "Part" in verbform
-            
+
             if not is_participle:
                 continue
-            
+
             # Suche im Kontext (5 Tokens vorher und nachher) nach Hilfsverben
             context_start = max(0, i - 5)
             context_end = min(len(tokens), i + 5)
             context_tokens = [t.text.lower() for t in tokens[context_start:context_end]]
-            context_lemmas = [t.lemma_.lower() for t in tokens[context_start:context_end]]
-            
+
             # Vorgangspassiv: werden + Partizip II
             has_werden = any(t in werden_forms for t in context_tokens)
             # Zustandspassiv: sein + Partizip II (aber nicht Perfekt Aktiv!)
             has_sein = any(t in sein_forms for t in context_tokens)
             # Modalpassiv: Modalverb im Kontext
             has_modal = any(t in modal_verbs for t in context_tokens)
-            
+
             if has_werden and has_modal:
                 passive_counts["modalpassiv"] += 1
                 passive_instances.append(f"Modalpassiv: ...{token.text}...")
@@ -312,31 +371,35 @@ def passive_voice_features(tagged_sentences):
                 else:
                     passive_counts["zustandspassiv"] += 1
                     passive_instances.append(f"Zustandspassiv: ...{token.text}...")
-    
+
     # Gesamtzahlen
     total_passive = sum(passive_counts.values())
-    
+
     return {
         **passive_counts,
         "total_passive": total_passive,
         "total_clauses": total_clauses,
-        "passive_ratio": round(total_passive / total_clauses, 3) if total_clauses > 0 else 0.0,
+        "passive_ratio": round(total_passive / total_clauses, 3)
+        if total_clauses > 0
+        else 0.0,
         "passive_instances": passive_instances[:10],  # Max 10 Beispiele
     }
 
-# --- Negation --------------------------------------------------------------------------------------------
+
+# --- Negation ---------------------------------------------------------------
+
 
 def negation_quantifier_features(tagged_sentences):
     """
     Erkennt Negation und Quantoren für Argumentationsstil-Analyse.
-    
+
     - Negation: nicht, kein, niemand, niemals, weder, ohne
     - Universelle Quantoren: alle, jeder, immer, stets (starke Behauptungen)
     - Partielle Quantoren: manche, einige, oft, manchmal (Hedging)
     - Restriktive: nur, lediglich, bloß, ausschließlich
     """
     nlp = get_spacy_nlp()
-    
+
     # Rekonstruiere Text
     words = []
     for sent in tagged_sentences:
@@ -344,43 +407,124 @@ def negation_quantifier_features(tagged_sentences):
             if len(tok) >= 1:
                 words.append(tok[0])
     text = " ".join(words)
-    
+
     doc = nlp(text)
-    
+
     # Wortlisten (Lemmas)
     negation_words = {
-        "nicht", "kein", "keine", "keiner", "keines", "keinem", "keinen",
-        "niemand", "niemals", "nie", "nirgends", "nirgendwo",
-        "weder", "ohne", "nichts", "kaum"
+        "nicht",
+        "kein",
+        "keine",
+        "keiner",
+        "keines",
+        "keinem",
+        "keinen",
+        "niemand",
+        "niemals",
+        "nie",
+        "nirgends",
+        "nirgendwo",
+        "weder",
+        "ohne",
+        "nichts",
+        "kaum",
     }
-    
+
     universal_quantifiers = {
-        "alle", "aller", "allem", "allen", "alles",
-        "jeder", "jede", "jedes", "jedem", "jeden",
-        "immer", "stets", "sämtlich", "sämtliche", "sämtlicher",
-        "ganz", "ganze", "ganzer", "ganzen", "ganzem",
-        "vollständig", "völlig", "komplett", "total",
-        "überall", "durchweg", "ausnahmslos"
+        "alle",
+        "aller",
+        "allem",
+        "allen",
+        "alles",
+        "jeder",
+        "jede",
+        "jedes",
+        "jedem",
+        "jeden",
+        "immer",
+        "stets",
+        "sämtlich",
+        "sämtliche",
+        "sämtlicher",
+        "ganz",
+        "ganze",
+        "ganzer",
+        "ganzen",
+        "ganzem",
+        "vollständig",
+        "völlig",
+        "komplett",
+        "total",
+        "überall",
+        "durchweg",
+        "ausnahmslos",
     }
-    
+
     partial_quantifiers = {
-        "manche", "mancher", "manches", "manchem", "manchen",
-        "einige", "einiger", "einiges", "einigem", "einigen",
-        "manche", "mehrere", "verschiedene",
-        "oft", "häufig", "manchmal", "gelegentlich", "bisweilen", "zuweilen",
-        "meistens", "meist", "überwiegend", "vorwiegend",
-        "teilweise", "teils", "gewöhnlich", "normalerweise",
-        "viele", "vieler", "vieles", "vielem", "vielen",
-        "wenige", "weniger", "weniges", "wenigem", "wenigen",
-        "etwas", "etwa", "ungefähr", "circa", "fast", "nahezu", "beinahe"
+        "manche",
+        "mancher",
+        "manches",
+        "manchem",
+        "manchen",
+        "einige",
+        "einiger",
+        "einiges",
+        "einigem",
+        "einigen",
+        "manche",
+        "mehrere",
+        "verschiedene",
+        "oft",
+        "häufig",
+        "manchmal",
+        "gelegentlich",
+        "bisweilen",
+        "zuweilen",
+        "meistens",
+        "meist",
+        "überwiegend",
+        "vorwiegend",
+        "teilweise",
+        "teils",
+        "gewöhnlich",
+        "normalerweise",
+        "viele",
+        "vieler",
+        "vieles",
+        "vielem",
+        "vielen",
+        "wenige",
+        "weniger",
+        "weniges",
+        "wenigem",
+        "wenigen",
+        "etwas",
+        "etwa",
+        "ungefähr",
+        "circa",
+        "fast",
+        "nahezu",
+        "beinahe",
     }
-    
+
     restrictive_words = {
-        "nur", "lediglich", "bloß", "bloss", "ausschließlich", "allein",
-        "einzig", "höchstens", "mindestens", "wenigstens", "zumindest",
-        "erst", "schon", "bereits", "noch"
+        "nur",
+        "lediglich",
+        "bloß",
+        "bloss",
+        "ausschließlich",
+        "allein",
+        "einzig",
+        "höchstens",
+        "mindestens",
+        "wenigstens",
+        "zumindest",
+        "erst",
+        "schon",
+        "bereits",
+        "noch",
     }
-    
+
     # Zähler
     counts = {
         "negation": 0,
@@ -388,7 +532,7 @@ def negation_quantifier_features(tagged_sentences):
         "partial_quantifier": 0,
         "restrictive": 0,
     }
-    
+
     # Beispiele sammeln
     examples = {
         "negation": [],
@@ -396,16 +540,16 @@ def negation_quantifier_features(tagged_sentences):
         "partial_quantifier": [],
         "restrictive": [],
     }
-    
+
     total_tokens = len([t for t in doc if not t.is_punct and not t.is_space])
-    
+
     for token in doc:
         token_lower = token.text.lower()
         lemma_lower = token.lemma_.lower()
-        
+
         # Prüfe gegen beide (Text und Lemma)
         check_forms = {token_lower, lemma_lower}
-        
+
         if check_forms & negation_words:
             counts["negation"] += 1
             if len(examples["negation"]) < 5:
@@ -422,31 +566,36 @@ def negation_quantifier_features(tagged_sentences):
             counts["restrictive"] += 1
             if len(examples["restrictive"]) < 5:
                 examples["restrictive"].append(token.text)
-    
+
     # Abgeleitete Metriken
     total_quantifiers = counts["universal_quantifier"] + counts["partial_quantifier"]
-    
+
     # Hedging-Ratio: partielle / (partielle + universelle)
     hedging_ratio = 0.0
     if total_quantifiers > 0:
         hedging_ratio = round(counts["partial_quantifier"] / total_quantifiers, 3)
-    
+
     # Assertion-Strength: universelle / (partielle + universelle)
     assertion_strength = 0.0
     if total_quantifiers > 0:
-        assertion_strength = round(counts["universal_quantifier"] / total_quantifiers, 3)
-    
+        assertion_strength = round(
+            counts["universal_quantifier"] / total_quantifiers, 3
+        )
+
     return {
         **counts,
         "total_quantifiers": total_quantifiers,
         "total_tokens": total_tokens,
-        "negation_per_100": round(counts["negation"] / total_tokens * 100, 2) if total_tokens > 0 else 0.0,
-        "quantifier_per_100": round(total_quantifiers / total_tokens * 100, 2) if total_tokens > 0 else 0.0,
+        "negation_per_100": round(counts["negation"] / total_tokens * 100, 2)
+        if total_tokens > 0
+        else 0.0,
+        "quantifier_per_100": round(total_quantifiers / total_tokens * 100, 2)
+        if total_tokens > 0
+        else 0.0,
         "hedging_ratio": hedging_ratio,
         "assertion_strength": assertion_strength,
         "examples": examples,
     }
-
 
 
 # --- Lexik & Kohäsion -------------------------------------------------------
@@ -505,17 +654,17 @@ CONNECTOR_LIST = [
     "hingegen",
     "außerdem",
     "zudem",
-    "und", 
-    "oder", 
-    "sondern", 
-    "also", 
+    "und",
+    "oder",
+    "sondern",
+    "also",
     "dann",
-    "danach", 
-    "später", 
-    "gleichzeitig", 
+    "danach",
+    "später",
+    "gleichzeitig",
     "dennoch",
-    "darum", 
-    "deswegen"
+    "darum",
+    "deswegen",
 ]
 
 
@@ -748,8 +897,7 @@ def lix_index(text: str, num_sentences: int, num_tokens: int):
         return None
 
     raw_tokens = [
-        w.strip(".,;:!?…()[]{}\"'„“‚‘«»”")
-        for w in text.split()
+        w.strip('.,;:!?…()[]{}"\'„“‚‘«»”') for w in text.split()
     ]
     raw_tokens = [w for w in raw_tokens if w]
 
@@ -757,7 +905,9 @@ def lix_index(text: str, num_sentences: int, num_tokens: int):
         return None
 
     long_words = [w for w in raw_tokens if len(w) >= 7]
-    lix = (len(raw_tokens) / num_sentences) + (len(long_words) * 100 / len(raw_tokens))
+    lix = (len(raw_tokens) / num_sentences) + (
+        len(long_words) * 100 / len(raw_tokens)
+    )
 
     return {
         "lix": lix,
@@ -770,8 +920,18 @@ def lix_index(text: str, num_sentences: int, num_tokens: int):
 
 
 MODAL_PARTICLES = {
-    "ja", "halt", "eben", "doch", "mal", "eigentlich",
-    "denn", "schon", "wohl", "ruhig", "bloß", "nur"
+    "ja",
+    "halt",
+    "eben",
+    "doch",
+    "mal",
+    "eigentlich",
+    "denn",
+    "schon",
+    "wohl",
+    "ruhig",
+    "bloß",
+    "nur",
 }
 
 
@@ -801,13 +961,14 @@ def modal_particle_features(tagged_sentences):
 
 # --- Morphologie: Tempus & Kasus aus HanTa ----------------------------------
 
+
 def morphology_features(tagged_sentences):
     """
     Extrahiert Tempus- und Kasus-Verteilungen mit spaCy (nicht HanTa).
     HanTa liefert keine morphologischen Details, spaCy schon.
     """
     nlp = get_spacy_nlp()
-    
+
     # Rekonstruiere den Text aus den tagged_sentences
     words = []
     for sent in tagged_sentences:
@@ -815,21 +976,21 @@ def morphology_features(tagged_sentences):
             if len(tok) >= 1:
                 words.append(tok[0])
     text = " ".join(words)
-    
+
     doc = nlp(text)
-    
+
     tense_counts = {"present": 0, "past": 0, "perfect": 0}
     case_counts = {"nominative": 0, "genitive": 0, "dative": 0, "accusative": 0}
-    
+
     total_finite_verbs = 0
     total_case_marked = 0
-    
+
     for token in doc:
         # Tempus aus Verben
         if token.pos_ == "VERB" or token.pos_ == "AUX":
             tense = token.morph.get("Tense")
             verbform = token.morph.get("VerbForm")
-            
+
             # Finite Verben (nicht Infinitiv, nicht Partizip)
             if verbform and "Fin" in verbform:
                 total_finite_verbs += 1
@@ -838,11 +999,11 @@ def morphology_features(tagged_sentences):
                         tense_counts["present"] += 1
                     elif "Past" in tense:
                         tense_counts["past"] += 1
-            
+
             # Partizip II (für Perfekt/Passiv)
             if verbform and "Part" in verbform:
                 tense_counts["perfect"] += 1
-        
+
         # Kasus aus Nomen, Pronomen, Artikeln
         if token.pos_ in {"NOUN", "PROPN", "PRON", "DET"}:
             case = token.morph.get("Case")
@@ -859,16 +1020,20 @@ def morphology_features(tagged_sentences):
                 elif "Acc" in case:
                     case_counts["accusative"] += 1
                     total_case_marked += 1
-    
+
     # Anteile berechnen
     tense_shares = {}
     for t, count in tense_counts.items():
-        tense_shares[f"{t}_share"] = round(count / total_finite_verbs, 3) if total_finite_verbs > 0 else 0.0
-    
+        tense_shares[f"{t}_share"] = (
+            round(count / total_finite_verbs, 3) if total_finite_verbs > 0 else 0.0
+        )
+
     case_shares = {}
     for c, count in case_counts.items():
-        case_shares[f"{c}_share"] = round(count / total_case_marked, 3) if total_case_marked > 0 else 0.0
-    
+        case_shares[f"{c}_share"] = (
+            round(count / total_case_marked, 3) if total_case_marked > 0 else 0.0
+        )
+
     return {
         **tense_counts,
         **case_counts,
@@ -878,10 +1043,14 @@ def morphology_features(tagged_sentences):
         **case_shares,
         "past_tense_ratio": round(
             (tense_counts["past"] + tense_counts["perfect"]) / total_finite_verbs, 3
-        ) if total_finite_verbs > 0 else 0.0,
+        )
+        if total_finite_verbs > 0
+        else 0.0,
         "oblique_case_ratio": round(
             (case_counts["genitive"] + case_counts["dative"]) / total_case_marked, 3
-        ) if total_case_marked > 0 else 0.0,
+        )
+        if total_case_marked > 0
+        else 0.0,
     }
 
 
@@ -889,13 +1058,13 @@ def verb_mood_features(tagged_sentences):
     """
     Erkennt Verb-Modi: Indikativ, Konjunktiv I, Konjunktiv II, Imperativ.
     Nutzt spaCy's morphologische Analyse.
-    
+
     Konjunktiv I: Subjunctive + Präsens (sei, habe, komme)
     Konjunktiv II: Subjunctive + Präteritum (wäre, hätte, käme)
     würde-Form: "würde" + Infinitiv (analytischer Konjunktiv II)
     """
     nlp = get_spacy_nlp()
-    
+
     # Rekonstruiere Text
     words = []
     for sent in tagged_sentences:
@@ -903,34 +1072,34 @@ def verb_mood_features(tagged_sentences):
             if len(tok) >= 1:
                 words.append(tok[0])
     text = " ".join(words)
-    
+
     doc = nlp(text)
-    
+
     mood_counts = {
         "indicative": 0,
         "subjunctive_1": 0,  # Konjunktiv I
         "subjunctive_2": 0,  # Konjunktiv II
         "imperative": 0,
-        "wuerde_form": 0,    # würde + Infinitiv
+        "wuerde_form": 0,  # würde + Infinitiv
     }
-    
+
     total_finite_verbs = 0
-    
+
     for i, token in enumerate(doc):
         if token.pos_ not in {"VERB", "AUX"}:
             continue
-            
+
         verbform = token.morph.get("VerbForm")
-        
+
         # Nur finite Verben zählen
         if not verbform or "Fin" not in verbform:
             continue
-            
+
         total_finite_verbs += 1
-        
+
         mood = token.morph.get("Mood")
         tense = token.morph.get("Tense")
-        
+
         if mood:
             if "Imp" in mood:
                 mood_counts["imperative"] += 1
@@ -943,7 +1112,7 @@ def verb_mood_features(tagged_sentences):
                     mood_counts["subjunctive_1"] += 1
             elif "Ind" in mood:
                 mood_counts["indicative"] += 1
-        
+
         # würde-Form erkennen (analytischer Konjunktiv II)
         if token.lemma_.lower() == "werden" and mood and "Sub" in mood:
             # Prüfe ob danach ein Infinitiv kommt
@@ -953,66 +1122,78 @@ def verb_mood_features(tagged_sentences):
                 if next_verbform and "Inf" in next_verbform:
                     mood_counts["wuerde_form"] += 1
                     break
-    
+
     # Anteile berechnen
     mood_shares = {}
     for m, count in mood_counts.items():
-        mood_shares[f"{m}_share"] = round(count / total_finite_verbs, 3) if total_finite_verbs > 0 else 0.0
-    
+        mood_shares[f"{m}_share"] = (
+            round(count / total_finite_verbs, 3) if total_finite_verbs > 0 else 0.0
+        )
+
     # Konjunktiv gesamt
-    total_subjunctive = mood_counts["subjunctive_1"] + mood_counts["subjunctive_2"] + mood_counts["wuerde_form"]
-    
+    total_subjunctive = (
+        mood_counts["subjunctive_1"]
+        + mood_counts["subjunctive_2"]
+        + mood_counts["wuerde_form"]
+    )
+
     return {
         **mood_counts,
         "total_finite_verbs": total_finite_verbs,
         "total_subjunctive": total_subjunctive,
-        "subjunctive_share": round(total_subjunctive / total_finite_verbs, 3) if total_finite_verbs > 0 else 0.0,
+        "subjunctive_share": round(
+            total_subjunctive / total_finite_verbs, 3
+        )
+        if total_finite_verbs > 0
+        else 0.0,
         **mood_shares,
     }
 
 
 # --- Wortfrequenz-Features (SUBTLEX-DE via wordfreq) ------------------------
 
+
 def word_frequency_features(tagged_sentences):
     """
     Berechnet Wortfrequenz-basierte Features mit der wordfreq-Bibliothek.
     Nutzt SUBTLEX-DE und andere deutsche Korpora.
-    
-    Zipf-Skala: 1-2 = sehr selten, 3-4 = selten, 4-5 = mittel, 5-6 = häufig, 6-7 = sehr häufig
+
+    Zipf-Skala: 1-2 = sehr selten, 3-4 = selten, 4-5 = mittel,
+                5-6 = häufig, 6-7 = sehr häufig
     """
     zipf_values = []
     rare_count = 0
     very_common_count = 0
     unknown_count = 0
     total_content_words = 0
-    
+
     for sent in tagged_sentences:
         for token_tuple in sent:
             if len(token_tuple) < 3:
                 continue
             word, lemma, pos = token_tuple[:3]
-            
+
             if not pos.startswith(("N", "V", "ADJ", "ADV")):
                 continue
-            
+
             lemma_lower = lemma.lower()
             total_content_words += 1
-            
+
             zipf = zipf_frequency(lemma_lower, "de")
-            
+
             if zipf == 0:
                 zipf = zipf_frequency(word.lower(), "de")
                 if zipf == 0:
                     unknown_count += 1
                     zipf = 2.0
-            
+
             zipf_values.append(zipf)
-            
+
             if zipf < 3.0:
                 rare_count += 1
             elif zipf > 5.5:
                 very_common_count += 1
-    
+
     if not zipf_values:
         return {
             "avg_zipf": 0.0,
@@ -1026,26 +1207,36 @@ def word_frequency_features(tagged_sentences):
             "unknown_share": 0.0,
             "difficulty_score": 0.5,
         }
-    
+
     sorted_zipf = sorted(zipf_values)
     n = len(sorted_zipf)
-    median_zipf = sorted_zipf[n // 2] if n % 2 == 1 else (sorted_zipf[n // 2 - 1] + sorted_zipf[n // 2]) / 2
-    
+    median_zipf = (
+        sorted_zipf[n // 2]
+        if n % 2 == 1
+        else (sorted_zipf[n // 2 - 1] + sorted_zipf[n // 2]) / 2
+    )
+
     avg_zipf = sum(zipf_values) / len(zipf_values)
-    
+
     difficulty_raw = (6.0 - avg_zipf) / (6.0 - 2.5)
     difficulty_score = max(0.0, min(1.0, difficulty_raw))
-    
+
     return {
         "avg_zipf": round(avg_zipf, 3),
         "min_zipf": round(min(zipf_values), 3),
         "max_zipf": round(max(zipf_values), 3),
         "median_zipf": round(median_zipf, 3),
         "rare_word_count": rare_count,
-        "rare_word_share": round(rare_count / total_content_words, 3) if total_content_words > 0 else 0.0,
-        "very_common_share": round(very_common_count / total_content_words, 3) if total_content_words > 0 else 0.0,
+        "rare_word_share": round(rare_count / total_content_words, 3)
+        if total_content_words > 0
+        else 0.0,
+        "very_common_share": round(very_common_count / total_content_words, 3)
+        if total_content_words > 0
+        else 0.0,
         "unknown_count": unknown_count,
-        "unknown_share": round(unknown_count / total_content_words, 3) if total_content_words > 0 else 0.0,
+        "unknown_share": round(unknown_count / total_content_words, 3)
+        if total_content_words > 0
+        else 0.0,
         "difficulty_score": round(difficulty_score, 3),
     }
 
@@ -1055,30 +1246,32 @@ def get_rare_words_list(tagged_sentences, threshold=3.0, max_words=20):
     Gibt eine Liste der seltensten Wörter im Text zurück.
     """
     rare_words = []
-    
+
     for sent in tagged_sentences:
         for token_tuple in sent:
             if len(token_tuple) < 3:
                 continue
             word, lemma, pos = token_tuple[:3]
-            
+
             if not pos.startswith(("N", "V", "ADJ", "ADV")):
                 continue
-            
+
             lemma_lower = lemma.lower()
             zipf = zipf_frequency(lemma_lower, "de")
-            
+
             if zipf == 0:
                 zipf = zipf_frequency(word.lower(), "de")
-            
+
             if 0 < zipf < threshold:
-                rare_words.append({
-                    "word": word,
-                    "lemma": lemma,
-                    "zipf": round(zipf, 2),
-                    "pos": pos
-                })
-    
+                rare_words.append(
+                    {
+                        "word": word,
+                        "lemma": lemma,
+                        "zipf": round(zipf, 2),
+                        "pos": pos,
+                    }
+                )
+
     seen_lemmas = set()
     unique_rare = []
     for w in sorted(rare_words, key=lambda x: x["zipf"]):
@@ -1087,8 +1280,9 @@ def get_rare_words_list(tagged_sentences, threshold=3.0, max_words=20):
             unique_rare.append(w)
         if len(unique_rare) >= max_words:
             break
-    
+
     return unique_rare
+
 
 # --- Dependency-Parsing mit spaCy: Baumtiefe ---------------------------------
 
@@ -1111,7 +1305,7 @@ def dependency_tree_features(text: str):
     Berechnet Baumtiefen-Features auf Basis des Dependency-Parsers.
     - Für jeden Satz: maximale Tiefe vom Token zur Wurzel
     - Liefert Aggregatwerte über alle Sätze
-    - NEU: gibt auch die Liste der Tiefen pro Satz zurück (sent_tree_depths)
+    - gibt auch die Liste der Tiefen pro Satz zurück (sent_tree_depths)
     """
     nlp = get_spacy_nlp()
     doc = nlp(text)
@@ -1145,9 +1339,8 @@ def dependency_tree_features(text: str):
         "min_tree_depth": min(sent_depths),
         "max_tree_depth": max(sent_depths),
         "num_sents_parsed": len(sent_depths),
-        "sent_tree_depths": sent_depths,  # ✅ NEU
+        "sent_tree_depths": sent_depths,
     }
-
 
 
 # --- Dimensionen 0–1 --------------------------------------------------------
@@ -1171,23 +1364,26 @@ def compute_dimension_scores(
     mp_feats,
     freq_feats=None,
     dep_tree=None,
+    mood_feats=None,
+    passive_feats=None,
+    morph_feats=None,
 ):
     """
     Errechnet normalisierte Dimensionen im Bereich [0,1].
-    Schwellenwerte sind heuristisch und später leicht anpassbar.
+    Schwellenwerte sind heuristisch und später anpassbar.
     """
     dims = {}
 
-    # 1) Grammatik-Genauigkeit: 1 = keine Fehler, 0 ~ sehr viele Fehler
+    # 1) Grammatik-Genauigkeit: 1 = keine Fehler, 0 ~ viele Fehler
     if num_tokens > 0:
         errors_per_100 = num_issues / num_tokens * 100.0
-        # 0 Fehler -> ~1.0, >= 20 Fehler/100 -> 0.0
-        score = 1.0 - (errors_per_100 / 20.0)
+        # 0 Fehler -> 1.0, >=10 Fehler/100 -> 0.0
+        score = 1.0 - (errors_per_100 / 10.0)
         dims["grammar_accuracy"] = clamp01(score)
     else:
-        dims["grammar_accuracy"] = 0.0
+        dims["grammar_accuracy"] = 1.0
 
-        # 2) Syntaktische Komplexität
+    # 2) Syntaktische Komplexität
     if lengths:
         avg_len = mean(lengths)
         finite_mean = mean(finite_verbs) if finite_verbs else 0.0
@@ -1202,59 +1398,87 @@ def compute_dimension_scores(
         cnps_norm = clamp01((cnps_mean - 0.0) / (2.0 - 0.0))
         vorfeld_norm = clamp01((vorfeld_mean - 0.0) / (6.0 - 0.0))
 
-        # ✅ NEU: Baumtiefe (spaCy)
-        # Typischer Bereich: 2 (sehr einfach) bis 8 (komplex)
+        # Baumtiefe (spaCy)
         if dep_tree and dep_tree.get("num_sents_parsed", 0) > 0:
             tree_depth = dep_tree.get("avg_tree_depth", 0.0)
             tree_depth_norm = clamp01((tree_depth - 2.0) / (8.0 - 2.0))
         else:
             tree_depth_norm = 0.0
 
-        # Gewichtung mit Baumtiefe (20%)
         dims["syntactic_complexity"] = (
-            0.25 * avg_len_norm
+            0.20 * avg_len_norm
             + 0.15 * finite_norm
-            + 0.15 * sub_norm
+            + 0.20 * sub_norm
             + 0.10 * cnps_norm
             + 0.10 * vorfeld_norm
-            + 0.25 * tree_depth_norm      # ✅ NEU
+            + 0.25 * tree_depth_norm
         )
     else:
         dims["syntactic_complexity"] = 0.0
 
-    # 3) Lexikalische Diversität
+    # 3) Grammatische Sophistication (Konjunktiv, Passiv, oblique Kasus, Nebensätze)
+    sophistication_components = []
+
+    # Konjunktiv-Nutzung
+    if mood_feats:
+        subj_share = mood_feats.get("subjunctive_share", 0.0)
+        subj_norm = clamp01(subj_share / 0.10)  # 10%+ = 1.0
+        sophistication_components.append(subj_norm * 0.35)
+
+    # Passiv-Nutzung
+    if passive_feats:
+        passive_ratio = passive_feats.get("passive_ratio", 0.0)
+        passive_norm = clamp01(passive_ratio / 0.15)  # 15%+ = 1.0
+        sophistication_components.append(passive_norm * 0.25)
+
+    # Oblique Kasus (Genitiv + Dativ)
+    if morph_feats:
+        oblique_ratio = morph_feats.get("oblique_case_ratio", 0.0)
+        oblique_norm = clamp01((oblique_ratio - 0.20) / 0.30)
+        sophistication_components.append(oblique_norm * 0.20)
+
+    # Nebensatz-Dichte
+    if subclauses and lengths:
+        sub_per_sent = mean(subclauses)
+        sub_density_norm = clamp01(sub_per_sent / 1.5)
+        sophistication_components.append(sub_density_norm * 0.20)
+
+    if sophistication_components:
+        # Gewichte sind so gewählt, dass Summe <= 1
+        dims["grammatical_sophistication"] = sum(sophistication_components)
+    else:
+        dims["grammatical_sophistication"] = 0.0
+
+    # 4) Lexikalische Diversität
     content_share = lex_feats.get("content_word_share", 0.0) if lex_feats else 0.0
     lemma_ttr = lex_feats.get("lemma_ttr", 0.0) if lex_feats else 0.0
 
     if mattr is not None:
         mattr_avg = mattr.get("avg", 0.0)
-        # 0.3–0.7 typischer MATTR-Bereich
         mattr_norm = clamp01((mattr_avg - 0.3) / (0.7 - 0.3))
     else:
         mattr_norm = clamp01((lemma_ttr - 0.2) / (0.6 - 0.2))
 
-    # 0.4–0.7 Inhaltswort-Anteil
     content_norm = clamp01((content_share - 0.4) / (0.7 - 0.4))
     dims["lexical_diversity"] = 0.7 * mattr_norm + 0.3 * content_norm
 
-    # 4) Kohäsion
-    conn_density = coh_feats.get("connector_density_per_100_tokens", 0.0) if coh_feats else 0.0
-    # einfache Normierung: 0–10 Konnektoren/100 Tokens
+    # 5) Kohäsion
+    conn_density = (
+        coh_feats.get("connector_density_per_100_tokens", 0.0) if coh_feats else 0.0
+    )
     conn_norm = clamp01(conn_density / 10.0)
 
     if overlap is not None:
         ov = overlap.get("avg_overlap", 0.0)
-        # 0.0–0.5 Jaccard-Overlap
         overlap_norm = clamp01(ov / 0.5)
     else:
         overlap_norm = 0.0
 
     dims["cohesion"] = 0.5 * conn_norm + 0.5 * overlap_norm
 
-    # 5) Textschwierigkeit (Lesbarkeit + Wortfrequenz) – höher = schwieriger
+    # 6) Textschwierigkeit (Lesbarkeit + Wortfrequenz)
     if lix is not None:
         lix_value = lix.get("lix", 0.0)
-        # 20 (leicht) – 60 (schwer)
         lix_norm = clamp01((lix_value - 20.0) / (60.0 - 20.0))
     else:
         lix_norm = 0.0
@@ -1262,25 +1486,26 @@ def compute_dimension_scores(
     if freq_feats is not None:
         freq_difficulty = freq_feats.get("difficulty_score", 0.0)
         rare_share = freq_feats.get("rare_word_share", 0.0)
-        # Rare words boost: bis zu 0.2 extra, wenn > 20% seltene Wörter
         rare_boost = clamp01(rare_share / 0.2) * 0.2
         freq_score = clamp01(freq_difficulty + rare_boost)
-        # Kombiniere LIX (40%) und Wortfrequenz (60%)
         dims["text_difficulty"] = 0.4 * lix_norm + 0.6 * freq_score
     else:
         dims["text_difficulty"] = lix_norm
 
-    # 6) Register / Informalität (grob)
+    # 7) Register / Informalität
     pron_share = pronouns.get("share_pronouns", 0.0) if pronouns else 0.0
-    # 0.05–0.20 Pronomen-Anteil
     pron_norm = clamp01((pron_share - 0.05) / (0.2 - 0.05))
 
-    direct_share = direct_speech.get("share_inside_quotes", 0.0) if direct_speech else 0.0
-    # bis ca. 30% Tokens in direkter Rede
+    direct_share = (
+        direct_speech.get("share_inside_quotes", 0.0) if direct_speech else 0.0
+    )
     direct_norm = clamp01(direct_share / 0.3)
 
-    mp_density = mp_feats.get("modal_particle_density_per_100_tokens", 0.0) if mp_feats else 0.0
-    # bis ca. 5 Modalpartikeln/100 Tokens
+    mp_density = (
+        mp_feats.get("modal_particle_density_per_100_tokens", 0.0)
+        if mp_feats
+        else 0.0
+    )
     mp_norm = clamp01(mp_density / 5.0)
 
     dims["register_informality"] = (pron_norm + direct_norm + mp_norm) / 3.0
@@ -1289,85 +1514,101 @@ def compute_dimension_scores(
     return dims
 
 
-# --- CEFR-Schätzer (basierend auf MERLIN-Ridge-Modell) ----------------------
+# --- CEFR-Schätzer (überarbeitet, MERLIN-basiert + Ceiling) -----------------
 
 
 WEIGHTS = {
-    "grammar_accuracy":     0.0000,
-    "syntactic_complexity": 0.1085,   # war -0.1085 -> jetzt positiv
-    "lexical_diversity":    0.1116,   # war -0.1116 -> jetzt positiv
-    "cohesion":             0.0972,
-    "text_difficulty":      0.7111,
-    "register_informality": 0.0000,   # war 0.0991 -> jetzt neutralisiert
+    "grammar_accuracy": 0.20,
+    "syntactic_complexity": 0.15,
+    "lexical_diversity": 0.10,
+    "cohesion": 0.10,
+    "text_difficulty": 0.20,
+    "grammatical_sophistication": 0.25,
+    "register_informality": 0.00,
 }
 
-INTERCEPT = 2.96999031945789
-
 MEANS = {
-    "grammar_accuracy":     1.000000,
-    "syntactic_complexity": 0.297293,
-    "lexical_diversity":    0.780302,
-    "cohesion":             0.041663,
-    "text_difficulty":      0.350778,
-    "register_informality": 0.106771,
+    "grammar_accuracy": 0.80,
+    "syntactic_complexity": 0.35,
+    "lexical_diversity": 0.50,
+    "cohesion": 0.30,
+    "text_difficulty": 0.40,
+    "grammatical_sophistication": 0.15,
+    "register_informality": 0.15,
 }
 
 STDS = {
-    "grammar_accuracy":     1.000000,
-    "syntactic_complexity": 0.200858,
-    "lexical_diversity":    0.044508,
-    "cohesion":             0.052577,
-    "text_difficulty":      0.256159,
-    "register_informality": 0.076954,
+    "grammar_accuracy": 0.20,
+    "syntactic_complexity": 0.20,
+    "lexical_diversity": 0.15,
+    "cohesion": 0.20,
+    "text_difficulty": 0.25,
+    "grammatical_sophistication": 0.15,
+    "register_informality": 0.10,
 }
+
+# Mittelwert im Bereich B1/B2
+INTERCEPT = 3.5
 
 
 def estimate_cefr_score_from_dims(dims: dict) -> float:
     """
-    Kontinuierlicher Score, grob: 1~A1, 2~A2, 3~B1, 4~B2, 5~C1, 6~C2.
+    Kontinuierlicher Score: 1~A1, 2~A2, 3~B1, 4~B2, 5~C1, 6~C2.
+
+    Behelfsmäßig angepasst für:
+    - stärkere Gewichtung von Fehlerfreiheit und grammatischer Sophistication
+    - geringere Dominanz von Textschwierigkeit (MERLIN-basiert)
+    - Native Speaker Ceiling (C1+ bei hoher Accuracy + Sophistication)
     """
     z = INTERCEPT
+
     for name, w in WEIGHTS.items():
-        x = float(dims.get(name, 0.0))
-        std = STDS.get(name, 0.0)
-        if std > 0:
-            x_scaled = (x - MEANS[name]) / std
+        if w == 0:
+            continue
+        x = float(dims.get(name, MEANS.get(name, 0.0)))
+        mean_val = MEANS.get(name, 0.0)
+        std_val = STDS.get(name, 1.0)
+
+        if std_val > 0:
+            x_scaled = (x - mean_val) / std_val
         else:
             x_scaled = 0.0
+
         z += w * x_scaled
 
+    # Native Speaker Ceiling / High-end-Boost
+    gram_soph = dims.get("grammatical_sophistication", 0.0)
+    gram_acc = dims.get("grammar_accuracy", 0.0)
+
+    # Sehr hohe Sophistication + fast keine Fehler → mindestens C1
+    if gram_acc >= 0.95 and gram_soph >= 0.4:
+        z = max(z, 5.0)  # C1+
+    elif gram_acc >= 0.90 and gram_soph >= 0.3:
+        z = max(z, 4.5)  # solides B2+
+
+    # Bonus für nahezu perfekte Grammatik
+    if gram_acc >= 0.98:
+        z += 0.3
+
     # Auf 1..6 clampen
-    if z < 1.0:
-        z = 1.0
-    elif z > 6.0:
-        z = 6.0
-    return z
+    return max(1.0, min(6.0, z))
 
 
 def estimate_cefr_label_from_dims(dims: dict) -> str:
     """
     Mappt den Score auf eine CEFR-Stufe.
-    Schwellen sind heuristisch und können später mit MERLIN-Verteilungen
-    feinjustiert werden.
     """
     score = estimate_cefr_score_from_dims(dims)
 
-    # Heuristische Bänder:
-    #  <1.5   -> A1
-    #  1.5–2.5 -> A2
-    #  2.5–3.5 -> B1
-    #  3.5–4.2 -> B2
-    #  4.2–5.3 -> C1
-    #  >=5.3   -> C2
     if score < 1.5:
         return "A1"
     elif score < 2.5:
         return "A2"
     elif score < 3.5:
         return "B1"
-    elif score < 4.2:
+    elif score < 4.5:
         return "B2"
-    elif score < 5.3:
+    elif score < 5.5:
         return "C1"
     else:
         return "C2"
@@ -1395,7 +1636,9 @@ if __name__ == "__main__":
     # 2) Grammatik
     matches = check_grammar_with_languagetool(text)
     num_issues = len(matches)
-    errors_per_100_tokens = (num_issues / num_tokens * 100) if num_tokens > 0 else 0.0
+    errors_per_100_tokens = (
+        num_issues / num_tokens * 100 if num_tokens > 0 else 0.0
+    )
 
     # 3) Komplexität
     lengths = sentence_lengths(tagged_sentences)
@@ -1419,9 +1662,14 @@ if __name__ == "__main__":
     punct_feats = punctuation_features(tagged_sentences)
     lix = lix_index(text, num_sentences, num_tokens)
     mp_feats = modal_particle_features(tagged_sentences)
-    freq_feats = word_frequency_features(tagged_sentences)  # ✅ NEU
-    rare_words = get_rare_words_list(tagged_sentences)       # ✅ NEU
+    freq_feats = word_frequency_features(tagged_sentences)
+    rare_words = get_rare_words_list(tagged_sentences)
 
+    # 5b) Neue Features für Sophistication
+    morph_feats = morphology_features(tagged_sentences)
+    mood_feats = verb_mood_features(tagged_sentences)
+    passive_feats = passive_voice_features(tagged_sentences)
+    dep_tree = dependency_tree_features(text)
 
     # 6) Dimensionen 0–1
     dim_scores = compute_dimension_scores(
@@ -1441,6 +1689,10 @@ if __name__ == "__main__":
         lix=lix,
         mp_feats=mp_feats,
         freq_feats=freq_feats,
+        dep_tree=dep_tree,
+        mood_feats=mood_feats,
+        passive_feats=passive_feats,
+        morph_feats=morph_feats,
     )
 
     # --- Visualisierung -----------------------------------------------------
@@ -1573,33 +1825,41 @@ if __name__ == "__main__":
         )
     print()
 
-    print()
-    
     print("=== Wortfrequenz (SUBTLEX-DE) ===")
     print(f"Ø Zipf-Frequenz:        {freq_feats['avg_zipf']:.2f}")
     print(f"Median Zipf:            {freq_feats['median_zipf']:.2f}")
-    print(f"Min/Max Zipf:           {freq_feats['min_zipf']:.2f} / {freq_feats['max_zipf']:.2f}")
-    print(f"Seltene Wörter (Zipf<3):{freq_feats['rare_word_count']} ({freq_feats['rare_word_share']:.1%})")
-    print(f"Sehr häufige (Zipf>5.5):{freq_feats['very_common_share']:.1%}")
-    print(f"Unbekannte Wörter:      {freq_feats['unknown_count']} ({freq_feats['unknown_share']:.1%})")
+    print(
+        f"Min/Max Zipf:           "
+        f"{freq_feats['min_zipf']:.2f} / {freq_feats['max_zipf']:.2f}"
+    )
+    print(
+        f"Seltene Wörter (Zipf<3):{freq_feats['rare_word_count']} "
+        f"({freq_feats['rare_word_share']:.1%})"
+    )
+    print(
+        f"Sehr häufige (Zipf>5.5):{freq_feats['very_common_share']:.1%}"
+    )
+    print(
+        f"Unbekannte Wörter:      {freq_feats['unknown_count']} "
+        f"({freq_feats['unknown_share']:.1%})"
+    )
     print(f"Schwierigkeitsscore:    {freq_feats['difficulty_score']:.3f}")
     if rare_words:
         print("Seltenste Wörter:")
         for w in rare_words[:10]:
             print(f"  - {w['word']} ({w['lemma']}, Zipf={w['zipf']})")
+    print()
 
     print("=== Normalisierte Dimensionen (0–1) ===")
     for name, value in dim_scores.items():
-        print(f"{name:22s}: {value:.3f}")
+        print(f"{name:25s}: {value:.3f}")
     print()
-
-    
 
     # --- CEFR-Schätzung -----------------------------------------------------
 
     cefr_score = estimate_cefr_score_from_dims(dim_scores)
     cefr_label = estimate_cefr_label_from_dims(dim_scores)
 
-    print("=== CEFR-Schätzung (heuristisch, MERLIN-basiert) ===")
+    print("=== CEFR-Schätzung (heuristisch, MERLIN+Ceiling) ===")
     print(f"Score: {cefr_score:.2f}  ->  Level: {cefr_label}")
     print()
