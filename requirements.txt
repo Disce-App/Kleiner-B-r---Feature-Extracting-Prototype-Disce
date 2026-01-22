@@ -15,4 +15,6 @@ audio-recorder-streamlit
 
 # Claude API (optional - ohne läuft Mock-Modus)
 anthropic
+
 requests
+openai
