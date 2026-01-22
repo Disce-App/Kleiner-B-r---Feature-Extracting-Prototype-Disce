@@ -24,6 +24,13 @@ from grosser_baer import (
 # Kleiner Bär – deterministische Textanalyse
 from disce_core import analyze_text_for_llm
 
+# OpenAI Services (Whisper + GPT)
+try:
+    from openai_services import transcribe_audio, generate_coach_feedback, check_api_connection
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
 
 # =============================================================================
 # KONFIGURATION
@@ -283,6 +290,19 @@ def send_session_to_airtable() -> tuple[bool, str]:
 
 
 # =============================================================================
+# GPT FEEDBACK WRAPPER CLASS
+# =============================================================================
+
+class GPTFeedback:
+    """Wrapper-Klasse für GPT-generiertes Feedback."""
+    def __init__(self, text: str, cefr_data: dict):
+        self.text = text
+        self.cefr_label = cefr_data.get("label", "")
+        self.cefr_score = cefr_data.get("score", 0)
+        self.is_mock = False
+
+
+# =============================================================================
 # HEADER
 # =============================================================================
 
@@ -361,6 +381,14 @@ with st.sidebar:
         help="Aktiviert Beispiel-Transkripte und Mock-Feedback für Testing",
     )
 
+    # API-Status anzeigen
+    if not MOCK_MODE:
+        if OPENAI_AVAILABLE:
+            st.success("✅ OpenAI API verfügbar")
+        else:
+            st.error("❌ OpenAI API nicht verfügbar")
+            st.caption("Aktiviere Mock-Modus oder prüfe openai_services.py")
+
     st.markdown("---")
 
     if st.button("🔄 Neue Session", use_container_width=True):
@@ -368,7 +396,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption("Großer Bär v0.2 – Prototype")
+    st.caption("Großer Bär v0.3 – mit OpenAI Integration")
 
 
 # =============================================================================
@@ -610,7 +638,9 @@ elif st.session_state.phase == "feedback":
         with st.spinner("🔍 Analysiere deine Aufnahme..."):
 
             if MOCK_MODE:
-                # Mock: Verwende eingegebenen Text, Feedback ist simuliert
+                # =============================================================
+                # MOCK-MODUS (wie bisher)
+                # =============================================================
                 transcript_text = (
                     st.session_state.transcript
                     or "Dies ist ein Mock-Transkript für Testing."
@@ -626,10 +656,8 @@ elif st.session_state.phase == "feedback":
                         "target_level": task.get("level"),
                         "target_register": task.get("register"),
                         "time_limit_seconds": task.get("time_seconds"),
-                        # Lernziel für spätere LLM-Nutzung
                         "learner_goal": st.session_state.learner_goal,
                         "learner_context": st.session_state.learner_context,
-                        # Nutzercode
                         "user_code": st.session_state.user_code,
                     },
                 )
@@ -644,11 +672,11 @@ elif st.session_state.phase == "feedback":
                     kleiner_baer_result=kb_result,
                     learner_goal=st.session_state.learner_goal,
                     learner_context=st.session_state.learner_context,
-                    reflection="",  # wird später ergänzt
+                    reflection="",
                 )
                 st.session_state.coach_input = coach_input
 
-                # 3) Narratives Feedback (weiterhin Mock / LLM später)
+                # 3) Mock-Feedback (altes System)
                 feedback = generate_feedback(
                     transcript=transcript_text,
                     task=task,
@@ -660,17 +688,25 @@ elif st.session_state.phase == "feedback":
                 st.session_state.transcript_text = transcript_text
 
             else:
-                # Echter Modus: Audio verarbeiten
-                audio_result = process_speaking_task(
-                    audio_bytes=st.session_state.audio_bytes,
-                    task_id=st.session_state.selected_task_id,
-                    duration_seconds=duration,
-                    use_mock=False,
-                )
+                # =============================================================
+                # ECHTER MODUS MIT OPENAI
+                # =============================================================
+                
+                # 1) Audio transkribieren mit Whisper (wenn Audio vorhanden)
+                if st.session_state.audio_bytes and OPENAI_AVAILABLE:
+                    with st.spinner("🎙️ Transkribiere Audio mit Whisper..."):
+                        try:
+                            transcript_text = transcribe_audio(st.session_state.audio_bytes)
+                        except Exception as e:
+                            st.error(f"❌ Whisper-Fehler: {str(e)}")
+                            transcript_text = st.session_state.transcript or "Transkription fehlgeschlagen."
+                else:
+                    # Fallback: Text aus Mock-Eingabe oder Platzhalter
+                    transcript_text = st.session_state.transcript or "Kein Text vorhanden."
+                
+                st.session_state.transcript_text = transcript_text
 
-                transcript_text = audio_result.transcript.text
-
-                # 1) Kleiner Bär über das Transkript laufen lassen
+                # 2) Kleiner Bär: deterministische Analyse
                 kb_result = analyze_text_for_llm(
                     transcript_text,
                     context={
@@ -687,7 +723,7 @@ elif st.session_state.phase == "feedback":
                 )
                 st.session_state.kleiner_baer_result = kb_result
 
-                # 2) Coach-Input-Block (hier später um Azure-Daten ergänzen)
+                # 3) Coach-Input-Block bauen
                 coach_input = build_coach_input(
                     transcript_text=transcript_text,
                     task=task,
@@ -700,17 +736,32 @@ elif st.session_state.phase == "feedback":
                 )
                 st.session_state.coach_input = coach_input
 
-                # 3) Narratives Feedback (Claude/LLM, aktuell noch Mock-Logik)
-                feedback = generate_feedback(
-                    transcript=transcript_text,
-                    task=task,
-                    prosody=audio_result.prosody,
-                    use_mock=False,
-                )
+                # 4) GPT-4o-mini Coaching-Feedback
+                if OPENAI_AVAILABLE:
+                    with st.spinner("🤖 Generiere Coaching-Feedback mit GPT..."):
+                        try:
+                            gpt_feedback_text = generate_coach_feedback(coach_input)
+                            feedback = GPTFeedback(gpt_feedback_text, kb_result.get("cefr", {}))
+                        except Exception as e:
+                            st.error(f"❌ GPT-Fehler: {str(e)}")
+                            # Fallback auf Mock-Feedback
+                            feedback = generate_feedback(
+                                transcript=transcript_text,
+                                task=task,
+                                prosody=None,
+                                use_mock=True,
+                            )
+                else:
+                    # OpenAI nicht verfügbar → Mock-Feedback
+                    st.warning("⚠️ OpenAI nicht verfügbar, nutze Mock-Feedback")
+                    feedback = generate_feedback(
+                        transcript=transcript_text,
+                        task=task,
+                        prosody=None,
+                        use_mock=True,
+                    )
 
                 st.session_state.feedback_result = feedback
-                st.session_state.audio_result = audio_result
-                st.session_state.transcript_text = transcript_text
 
     # Ergebnisse aus Session holen
     feedback = st.session_state.feedback_result
@@ -757,12 +808,19 @@ elif st.session_state.phase == "feedback":
 
         st.markdown("---")
 
-        # Narratives Feedback
-        st.markdown(format_feedback_markdown(feedback))
+        # Feedback anzeigen - unterscheide zwischen GPT und Mock
+        if hasattr(feedback, 'text'):
+            # GPT-Feedback (neues Format)
+            st.markdown(feedback.text)
+        else:
+            # Altes Mock-Format
+            st.markdown(format_feedback_markdown(feedback))
 
-        # Mock-Hinweis
+        # Hinweis zum Modus
         if hasattr(feedback, "is_mock") and feedback.is_mock:
             st.caption("ℹ️ Mock-Modus: Dies ist simuliertes Feedback für Testing.")
+        elif not MOCK_MODE and OPENAI_AVAILABLE:
+            st.caption("🤖 Feedback generiert mit GPT-4o-mini")
 
     # -------------------------------------------------------------------------
     # Tab: Transkript
@@ -782,6 +840,8 @@ elif st.session_state.phase == "feedback":
 
         if MOCK_MODE:
             st.caption("ℹ️ Mock-Modus: Eingegebener Text")
+        elif not MOCK_MODE and OPENAI_AVAILABLE:
+            st.caption("🎙️ Transkribiert mit Whisper")
 
     # -------------------------------------------------------------------------
     # Tab: Metriken
@@ -849,7 +909,7 @@ elif st.session_state.phase == "feedback":
     with tab_api:
         st.subheader("LLM-Coach Input (JSON)")
         st.write(
-            "Dieser Block wird später an die LLM-Coach-API gesendet. "
+            "Dieser Block wird an die LLM-Coach-API gesendet. "
             "Er enthält Task-Metadaten, Transkript und deterministische Analyse "
             "nach dem Disce-Diagnostikmodell."
         )
@@ -966,6 +1026,5 @@ elif st.session_state.phase == "feedback":
 
 st.markdown("---")
 st.caption(
-    "🐻 Großer Bär nutzt Kleiner Bär für Textanalyse. "
-    "Feedback wird mit Claude generiert (oder Mock im Testmodus)."
+    "🐻 Großer Bär v0.3 – Kleiner Bär Textanalyse + OpenAI (Whisper & GPT-4o-mini)"
 )
