@@ -64,7 +64,7 @@ if "coach_input" not in st.session_state:
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
-# Neu: Planungsfeld (Phase 1)
+# Planungsfeld (Phase 1)
 if "learner_goal" not in st.session_state:
     st.session_state.learner_goal = ""
 
@@ -78,13 +78,43 @@ if "reflection_text" not in st.session_state:
 if "reflection_saved" not in st.session_state:
     st.session_state.reflection_saved = False
 
+# Nutzercode (Mini-Login)
+if "user_code" not in st.session_state:
+    st.session_state.user_code = ""
+
+if "user_code_confirmed" not in st.session_state:
+    st.session_state.user_code_confirmed = False
+
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
+def generate_user_code() -> str:
+    """Generiert einen zufälligen 6-stelligen Nutzercode."""
+    import random
+    import string
+    # Format: 3 Buchstaben + 3 Zahlen (z.B. ABC123)
+    letters = ''.join(random.choices(string.ascii_uppercase, k=3))
+    numbers = ''.join(random.choices(string.digits, k=3))
+    return f"{letters}{numbers}"
+
+
+def validate_user_code(code: str) -> tuple[bool, str]:
+    """Validiert den Nutzercode. Gibt (is_valid, message) zurück."""
+    if not code:
+        return False, "Bitte gib einen Code ein."
+    if len(code) < 4:
+        return False, "Der Code muss mindestens 4 Zeichen haben."
+    if len(code) > 20:
+        return False, "Der Code darf maximal 20 Zeichen haben."
+    if not code.replace("_", "").replace("-", "").isalnum():
+        return False, "Nur Buchstaben, Zahlen, - und _ erlaubt."
+    return True, "OK"
+
+
 def reset_session():
-    """Setzt die Session zurück für neue Aufnahme."""
+    """Setzt die Session zurück für neue Aufnahme (behält Nutzercode)."""
     st.session_state.phase = "select"
     st.session_state.selected_task_id = None
     st.session_state.audio_bytes = None
@@ -98,6 +128,14 @@ def reset_session():
     st.session_state.learner_context = ""
     st.session_state.reflection_text = ""
     st.session_state.reflection_saved = False
+    # user_code bleibt erhalten!
+
+
+def logout_user():
+    """Loggt den Nutzer aus (löscht auch Nutzercode)."""
+    st.session_state.user_code = ""
+    st.session_state.user_code_confirmed = False
+    reset_session()
 
 
 def build_coach_input(
@@ -115,6 +153,11 @@ def build_coach_input(
     recording_start = st.session_state.get("recording_start")
 
     return {
+        # Neu: Nutzer-Identifikation
+        "user": {
+            "code": st.session_state.get("user_code", ""),
+            "is_anonymous": not st.session_state.get("user_code_confirmed", False),
+        },
         "task_metadata": {
             "task_id": st.session_state.selected_task_id,
             "situation": task.get("situation"),
@@ -130,7 +173,7 @@ def build_coach_input(
             "ended_at": now.isoformat(),
             "duration_seconds": duration,
         },
-        # Neu: Planung der Lernenden (vor der Übung)
+        # Planung der Lernenden (vor der Übung)
         "learner_planning": {
             "goal": learner_goal,
             "context": learner_context,
@@ -171,8 +214,67 @@ st.markdown(
     "Wähle eine Aufgabe, nimm dich auf, und erhalte Analyse + Coaching."
 )
 
-# Sidebar
+# =============================================================================
+# SIDEBAR
+# =============================================================================
+
 with st.sidebar:
+    # -------------------------------------------------------------------------
+    # MINI-LOGIN: Nutzercode
+    # -------------------------------------------------------------------------
+    st.header("👤 Dein Nutzercode")
+
+    if st.session_state.user_code_confirmed:
+        # Eingeloggt: Code anzeigen
+        st.success(f"✅ Eingeloggt als: **{st.session_state.user_code}**")
+        st.caption("Dein Code verknüpft alle deine Sessions.")
+
+        if st.button("🚪 Ausloggen", use_container_width=True):
+            logout_user()
+            st.rerun()
+
+    else:
+        # Nicht eingeloggt: Login-Formular
+        st.markdown(
+            "Gib deinen persönlichen Code ein, um deine Sessions zu verknüpfen. "
+            "Du kannst einen eigenen Code wählen oder einen generieren lassen."
+        )
+
+        # Code-Eingabe
+        user_code_input = st.text_input(
+            "Dein Code:",
+            value=st.session_state.user_code,
+            max_chars=20,
+            placeholder="z.B. ANNA2024 oder XYZ123",
+            key="user_code_input",
+        )
+
+        col_login1, col_login2 = st.columns(2)
+
+        with col_login1:
+            if st.button("✅ Bestätigen", use_container_width=True):
+                is_valid, message = validate_user_code(user_code_input)
+                if is_valid:
+                    st.session_state.user_code = user_code_input.upper()
+                    st.session_state.user_code_confirmed = True
+                    st.rerun()
+                else:
+                    st.error(message)
+
+        with col_login2:
+            if st.button("🎲 Generieren", use_container_width=True):
+                new_code = generate_user_code()
+                st.session_state.user_code = new_code
+                st.session_state.user_code_confirmed = True
+                st.rerun()
+
+        st.caption("💡 Merke dir deinen Code, um später weiterzumachen!")
+
+    st.markdown("---")
+
+    # -------------------------------------------------------------------------
+    # EINSTELLUNGEN
+    # -------------------------------------------------------------------------
     st.header("⚙️ Einstellungen")
 
     MOCK_MODE = st.checkbox(
@@ -183,12 +285,29 @@ with st.sidebar:
 
     st.markdown("---")
 
-    if st.button("🔄 Neue Session"):
+    if st.button("🔄 Neue Session", use_container_width=True):
         reset_session()
         st.rerun()
 
     st.markdown("---")
     st.caption("Großer Bär v0.1 – Prototype")
+
+
+# =============================================================================
+# CHECK: Nutzercode erforderlich?
+# =============================================================================
+
+# Optional: Wenn du willst, dass ein Code PFLICHT ist, aktiviere diesen Block:
+# if not st.session_state.user_code_confirmed:
+#     st.warning("👈 Bitte gib zuerst deinen Nutzercode in der Sidebar ein.")
+#     st.stop()
+
+# Aktuell: Code ist optional, aber empfohlen
+if not st.session_state.user_code_confirmed:
+    st.info(
+        "💡 **Tipp:** Gib in der Sidebar deinen Nutzercode ein, "
+        "um deine Sessions zu verknüpfen und deinen Fortschritt zu tracken."
+    )
 
 
 # =============================================================================
@@ -272,10 +391,6 @@ if st.session_state.phase == "select":
             placeholder="z.B. Ich habe nächste Woche ein echtes Meeting mit meinem Chef.",
             key="learner_context_input",
         )
-
-    # Falls Expander nicht geöffnet, Default-Wert
-    if "learner_context_input" not in st.session_state:
-        learner_context_input = st.session_state.learner_context
 
     # Meta-Prompt aus Task anzeigen (falls vorhanden)
     if task.get("meta_prompts", {}).get("plan"):
@@ -436,6 +551,8 @@ elif st.session_state.phase == "feedback":
                         # Lernziel für spätere LLM-Nutzung
                         "learner_goal": st.session_state.learner_goal,
                         "learner_context": st.session_state.learner_context,
+                        # Nutzercode
+                        "user_code": st.session_state.user_code,
                     },
                 )
                 st.session_state.kleiner_baer_result = kb_result
@@ -487,6 +604,7 @@ elif st.session_state.phase == "feedback":
                         "time_limit_seconds": task.get("time_seconds"),
                         "learner_goal": st.session_state.learner_goal,
                         "learner_context": st.session_state.learner_context,
+                        "user_code": st.session_state.user_code,
                     },
                 )
                 st.session_state.kleiner_baer_result = kb_result
@@ -601,7 +719,7 @@ elif st.session_state.phase == "feedback":
             st.metric(
                 "Sprechtempo",
                 f"{wpm:.0f} WPM",
-                help="Wörter pro Minute (120–150 ist normal)",
+                help="Wörter pro Minute (120-150 ist normal)",
             )
 
         with col2:
