@@ -64,7 +64,14 @@ if "coach_input" not in st.session_state:
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
-# Neu: Reflexionsfeld
+# Neu: Planungsfeld (Phase 1)
+if "learner_goal" not in st.session_state:
+    st.session_state.learner_goal = ""
+
+if "learner_context" not in st.session_state:
+    st.session_state.learner_context = ""
+
+# Reflexionsfeld (Phase 3)
 if "reflection_text" not in st.session_state:
     st.session_state.reflection_text = ""
 
@@ -87,6 +94,8 @@ def reset_session():
     st.session_state.kleiner_baer_result = None
     st.session_state.coach_input = None
     st.session_state.session_id = str(uuid.uuid4())
+    st.session_state.learner_goal = ""
+    st.session_state.learner_context = ""
     st.session_state.reflection_text = ""
     st.session_state.reflection_saved = False
 
@@ -97,6 +106,8 @@ def build_coach_input(
     duration: float,
     mode: str,
     kleiner_baer_result: dict,
+    learner_goal: str = "",
+    learner_context: str = "",
     reflection: str = "",
 ) -> dict:
     """Baut den JSON-Block, der später an die LLM-Coach-API geht."""
@@ -119,6 +130,12 @@ def build_coach_input(
             "ended_at": now.isoformat(),
             "duration_seconds": duration,
         },
+        # Neu: Planung der Lernenden (vor der Übung)
+        "learner_planning": {
+            "goal": learner_goal,
+            "context": learner_context,
+            "submitted_at": recording_start.isoformat() if recording_start else None,
+        },
         "transcript": transcript_text,
         "analysis": {
             "layer1_deterministic": kleiner_baer_result.get("metrics_summary", {}),
@@ -127,7 +144,7 @@ def build_coach_input(
             "home_kpis": kleiner_baer_result.get("disce_metrics", {}),
             "hotspots": kleiner_baer_result.get("hotspots", []),
         },
-        # Neu: Reflexion der Lernenden
+        # Reflexion der Lernenden (nach der Übung)
         "reflection": {
             "text": reflection,
             "submitted_at": now.isoformat() if reflection else None,
@@ -175,7 +192,7 @@ with st.sidebar:
 
 
 # =============================================================================
-# PHASE 1: AUFGABE WÄHLEN
+# PHASE 1: AUFGABE WÄHLEN + ZIEL SETZEN
 # =============================================================================
 
 if st.session_state.phase == "select":
@@ -210,10 +227,73 @@ if st.session_state.phase == "select":
             for phrase in task["example_phrases"]:
                 st.markdown(f"- _{phrase}_")
 
+    # =========================================================================
+    # PLANUNGSFELD: Persönliches Lernziel
+    # =========================================================================
+    st.markdown("---")
+    st.subheader("🎯 Dein Lernziel für diese Session")
+
+    st.markdown(
+        "Bevor du startest: Was möchtest du heute konkret üben oder verbessern? "
+        "Das hilft dir, fokussiert zu bleiben – und dem Coach, dir gezieltes Feedback zu geben."
+    )
+
+    # Leitfragen als Inspiration
+    with st.expander("💡 Beispiele für Lernziele", expanded=False):
+        st.markdown(
+            """
+            - „Ich möchte flüssiger sprechen, ohne lange Pausen."
+            - „Ich will formeller klingen – weniger umgangssprachlich."
+            - „Ich übe, meine Argumente klar zu strukturieren."
+            - „Ich möchte Konjunktiv II sicher verwenden."
+            - „Ich will meine Nervosität in den Griff bekommen."
+            - „Ich übe, höflich aber bestimmt zu formulieren."
+            """
+        )
+
+    learner_goal_input = st.text_area(
+        "Was ist dein Ziel für diese Übung?",
+        value=st.session_state.learner_goal,
+        height=80,
+        placeholder="z.B. „Ich möchte heute üben, meine Punkte klar und strukturiert zu präsentieren."",
+        key="learner_goal_input",
+    )
+
+    # Optionales Kontextfeld
+    with st.expander("📝 Optionaler Kontext (für wen / warum)", expanded=False):
+        st.markdown(
+            "Falls du einen konkreten Anlass hast, kannst du ihn hier beschreiben. "
+            "Das macht das Feedback noch passender."
+        )
+        learner_context_input = st.text_area(
+            "Kontext (optional):",
+            value=st.session_state.learner_context,
+            height=60,
+            placeholder="z.B. „Ich habe nächste Woche ein echtes Meeting mit meinem Chef."",
+            key="learner_context_input",
+        )
+    
+    # Falls Expander nicht geöffnet, brauchen wir trotzdem den Wert
+    if "learner_context_input" not in dir():
+        learner_context_input = st.session_state.learner_context
+
+    # Meta-Prompt aus Task anzeigen (falls vorhanden)
+    if task.get("meta_prompts", {}).get("plan"):
+        st.info(f"💡 **Planungshinweis:** {task['meta_prompts']['plan']}")
+
     # Weiter-Button
+    st.markdown("---")
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("🎙️ Aufnahme starten", type="primary", use_container_width=True):
+        # Button-Text anpassen je nachdem ob Ziel eingegeben
+        button_text = "🎙️ Aufnahme starten"
+        if not learner_goal_input.strip():
+            st.caption("💡 Tipp: Ein konkretes Lernziel hilft dir, fokussiert zu bleiben.")
+        
+        if st.button(button_text, type="primary", use_container_width=True):
+            # Ziel und Kontext speichern
+            st.session_state.learner_goal = learner_goal_input.strip()
+            st.session_state.learner_context = learner_context_input.strip() if learner_context_input else ""
             st.session_state.selected_task_id = task_id
             st.session_state.phase = "record"
             st.session_state.recording_start = datetime.now()
@@ -234,6 +314,10 @@ elif st.session_state.phase == "record":
     st.caption(
         f"⏱️ Ziel: {task['time_seconds']} Sekunden | Register: {task['register']}"
     )
+
+    # Lernziel anzeigen (zur Erinnerung)
+    if st.session_state.learner_goal:
+        st.success(f"🎯 **Dein Fokus:** {st.session_state.learner_goal}")
 
     # Meta-Prompt (Planungshinweis)
     if task.get("meta_prompts", {}).get("plan"):
@@ -348,6 +432,9 @@ elif st.session_state.phase == "feedback":
                         "target_level": task.get("level"),
                         "target_register": task.get("register"),
                         "time_limit_seconds": task.get("time_seconds"),
+                        # Lernziel für spätere LLM-Nutzung
+                        "learner_goal": st.session_state.learner_goal,
+                        "learner_context": st.session_state.learner_context,
                     },
                 )
                 st.session_state.kleiner_baer_result = kb_result
@@ -359,6 +446,8 @@ elif st.session_state.phase == "feedback":
                     duration=duration,
                     mode="mock_speaking",
                     kleiner_baer_result=kb_result,
+                    learner_goal=st.session_state.learner_goal,
+                    learner_context=st.session_state.learner_context,
                     reflection="",  # wird später ergänzt
                 )
                 st.session_state.coach_input = coach_input
@@ -395,6 +484,8 @@ elif st.session_state.phase == "feedback":
                         "target_level": task.get("level"),
                         "target_register": task.get("register"),
                         "time_limit_seconds": task.get("time_seconds"),
+                        "learner_goal": st.session_state.learner_goal,
+                        "learner_context": st.session_state.learner_context,
                     },
                 )
                 st.session_state.kleiner_baer_result = kb_result
@@ -406,6 +497,8 @@ elif st.session_state.phase == "feedback":
                     duration=duration,
                     mode="speaking",
                     kleiner_baer_result=kb_result,
+                    learner_goal=st.session_state.learner_goal,
+                    learner_context=st.session_state.learner_context,
                     reflection="",
                 )
                 st.session_state.coach_input = coach_input
@@ -431,6 +524,10 @@ elif st.session_state.phase == "feedback":
     cefr_from_kb = None
     if kleiner_baer_result and "cefr" in kleiner_baer_result:
         cefr_from_kb = kleiner_baer_result["cefr"]
+
+    # Lernziel zur Erinnerung anzeigen
+    if st.session_state.learner_goal:
+        st.info(f"🎯 **Dein Fokus war:** {st.session_state.learner_goal}")
 
     # Tabs für verschiedene Ansichten
     tab_feedback, tab_transcript, tab_metrics, tab_api = st.tabs(
@@ -579,16 +676,19 @@ elif st.session_state.phase == "feedback":
         "Das hilft dir, das Gelernte zu verankern."
     )
 
-    # Leitfragen als Inspiration
+    # Leitfragen als Inspiration – angepasst ans Lernziel
     with st.expander("💡 Leitfragen zur Reflexion", expanded=False):
-        st.markdown(
-            """
-            - **Was ist mir gut gelungen?** (z.B. Wortwahl, Struktur, Flüssigkeit)
-            - **Was war schwierig?** (z.B. ein bestimmtes Wort, die Satzstellung, das Tempo)
-            - **Was will ich beim nächsten Mal anders machen?**
-            - **Welchen konkreten Aspekt übe ich als Nächstes?**
-            """
-        )
+        reflection_prompts = """
+- **Was ist mir gut gelungen?** (z.B. Wortwahl, Struktur, Flüssigkeit)
+- **Was war schwierig?** (z.B. ein bestimmtes Wort, die Satzstellung, das Tempo)
+- **Was will ich beim nächsten Mal anders machen?**
+- **Welchen konkreten Aspekt übe ich als Nächstes?**
+"""
+        # Falls Lernziel vorhanden, zusätzliche Frage
+        if st.session_state.learner_goal:
+            reflection_prompts += f"\n- **Bezogen auf dein Ziel** („{st.session_state.learner_goal}"): Wie gut hast du es erreicht?"
+        
+        st.markdown(reflection_prompts)
 
     # Reflexions-Textfeld
     reflection_input = st.text_area(
