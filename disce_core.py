@@ -385,7 +385,7 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
     sentence_data = build_sentence_data(sentences, tagged_sentences, dep_tree)
     hotspots = select_hotspots(sentence_data)
 
-    # 8) Dimensionen
+    # 8) Dimensionen (mit neuen Sophistication-Features)
     dim_scores = compute_dimension_scores(
         num_tokens=num_tokens,
         num_issues=num_issues,
@@ -404,6 +404,9 @@ def analyze_text_for_ui(text: str, use_grammar_check: bool = False) -> dict:
         mp_feats=mp_feats,
         freq_feats=freq_feats,
         dep_tree=dep_tree,
+        mood_feats=mood_feats,        # ✅ NEU
+        passive_feats=passive_feats,  # ✅ NEU
+        morph_feats=morph_feats,      # ✅ NEU
     )
 
     cefr_score = estimate_cefr_score_from_dims(dim_scores)
