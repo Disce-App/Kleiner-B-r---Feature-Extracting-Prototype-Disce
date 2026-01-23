@@ -266,18 +266,15 @@ def update_coach_input_with_reflection(reflection_text: str):
 def send_session_to_airtable() -> tuple[bool, str]:
     """
     Sendet die Session-Daten an Make Webhook → Airtable.
-    Gibt (success, message) zurück.
+    Make verteilt die Daten auf pretest_responses und Sessions.
     """
     try:
-        # Daten aus Session State sammeln
         coach_input = st.session_state.get("coach_input", {})
         kleiner_baer_result = st.session_state.get("kleiner_baer_result", {})
         task = get_task(st.session_state.selected_task_id) if st.session_state.selected_task_id else {}
         
-        # CEFR-Daten extrahieren
+        # CEFR-Daten aus Analyse
         cefr_data = kleiner_baer_result.get("cefr", {})
-        cefr_label = cefr_data.get("label", "")
-        cefr_score = cefr_data.get("score", 0.0)
         
         # Session-Metadaten
         session_meta = coach_input.get("session_metadata", {})
@@ -285,12 +282,20 @@ def send_session_to_airtable() -> tuple[bool, str]:
         learner_planning = coach_input.get("learner_planning", {})
         reflection = coach_input.get("reflection", {})
         
-        # Payload für Airtable (flache Struktur)
+        # Pretest-Daten holen
+        pretest_data = get_pretest_data_for_airtable()
+        
+        # =====================================================================
+        # FLACHER PAYLOAD (alle Felder auf oberster Ebene)
+        # =====================================================================
         payload = {
+            # --- Identifikation ---
             "session_id": st.session_state.get("session_id", ""),
             "user_code": st.session_state.get("user_code", "ANON"),
             "session_number": st.session_state.get("session_count", 0),
             "created_at": datetime.now().isoformat(),
+            
+            # --- Session-Daten ---
             "mode": session_meta.get("mode", "unknown"),
             "task_id": task_meta.get("task_id", ""),
             "task_situation": task_meta.get("situation", ""),
@@ -302,14 +307,29 @@ def send_session_to_airtable() -> tuple[bool, str]:
             "learner_context": learner_planning.get("context", ""),
             "transcript": coach_input.get("transcript", ""),
             "reflection": reflection.get("text", ""),
-            "cefr_label": cefr_label,
-            "cefr_score": cefr_score,
+            "cefr_label": cefr_data.get("label", ""),
+            "cefr_score": cefr_data.get("score", 0.0),
             "metrics_json": json.dumps(kleiner_baer_result.get("disce_metrics", {})),
+            
+            # --- Pretest-Daten (NEU) ---
+            "pretest_completed": pretest_data.get("pretest_completed", False),
+            "pretest_completed_at": pretest_data.get("pretest_completed_at", ""),
+            "cefr_self_overall": pretest_data.get("cefr_self_overall", ""),
+            "cefr_self_speaking": pretest_data.get("cefr_self_speaking", ""),
+            "has_official_cert": pretest_data.get("has_official_cert", False),
+            "official_cert_type": pretest_data.get("official_cert_type", ""),
+            "learning_duration_months": pretest_data.get("learning_duration_months", 0),
+            "learning_context": pretest_data.get("learning_context", ""),
+            "native_language": pretest_data.get("native_language", ""),
+            "other_languages": pretest_data.get("other_languages", ""),
+            "masq_total": pretest_data.get("masq_total", 0),
+            "masq_level": pretest_data.get("masq_level", ""),
+            "masq_pe_mean": pretest_data.get("masq_pe_mean", 0),
+            "masq_ps_mean": pretest_data.get("masq_ps_mean", 0),
+            "masq_pk_mean": pretest_data.get("masq_pk_mean", 0),
+            "masq_mt_mean": pretest_data.get("masq_mt_mean", 0),
+            "masq_da_mean": pretest_data.get("masq_da_mean", 0),
         }
-        
-        # NEU: Pretest-Daten hinzufügen
-        pretest_data = get_pretest_data_for_airtable()
-        payload.update(pretest_data)
         
         # An Make Webhook senden
         response = requests.post(
@@ -330,7 +350,6 @@ def send_session_to_airtable() -> tuple[bool, str]:
         return False, f"Verbindungsfehler: {str(e)}"
     except Exception as e:
         return False, f"Fehler: {str(e)}"
-
 
 # =============================================================================
 # GPT FEEDBACK WRAPPER CLASS
