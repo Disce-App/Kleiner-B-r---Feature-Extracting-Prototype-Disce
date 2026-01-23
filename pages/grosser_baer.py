@@ -25,7 +25,7 @@ from grosser_baer import (
 from disce_core import analyze_text_for_llm
 
 # Pretest-Loader
-from pretest_loader import (
+from config.pretest_loader import (
     load_pretest_config,
     init_pretest_state,
     should_show_pretest,
