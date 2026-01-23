@@ -24,6 +24,18 @@ from grosser_baer import (
 # Kleiner Bär – deterministische Textanalyse
 from disce_core import analyze_text_for_llm
 
+# Pretest-Loader
+from pretest_loader import (
+    load_pretest_config,
+    init_pretest_state,
+    should_show_pretest,
+    render_pretest,
+    render_level_recheck,
+    get_pretest_data_for_airtable,
+    get_pretest_data_for_coach_input,
+    get_response as get_pretest_response,
+)
+
 # OpenAI Services (Whisper + GPT)
 try:
     from openai_services import transcribe_audio, generate_coach_feedback, check_api_connection
@@ -37,6 +49,7 @@ except ImportError:
 # =============================================================================
 
 MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/2f65yl8ut90pnq2jhbi1l1ft2ytecceh"
+PRETEST_CONFIG_PATH = "config/pretest_config.json"
 
 
 # =============================================================================
@@ -105,6 +118,17 @@ if "user_code_confirmed" not in st.session_state:
 if "session_saved" not in st.session_state:
     st.session_state.session_saved = False
 
+# Session-Zähler (für Level-Recheck)
+if "session_count" not in st.session_state:
+    st.session_state.session_count = 0
+
+# =============================================================================
+# PRETEST INITIALISIERUNG
+# =============================================================================
+
+init_pretest_state()
+PRETEST_CONFIG = load_pretest_config(PRETEST_CONFIG_PATH)
+
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -134,7 +158,7 @@ def validate_user_code(code: str) -> tuple[bool, str]:
 
 
 def reset_session():
-    """Setzt die Session zurück für neue Aufnahme (behält Nutzercode)."""
+    """Setzt die Session zurück für neue Aufnahme (behält Nutzercode + Pretest)."""
     st.session_state.phase = "select"
     st.session_state.selected_task_id = None
     st.session_state.audio_bytes = None
@@ -149,13 +173,21 @@ def reset_session():
     st.session_state.reflection_text = ""
     st.session_state.reflection_saved = False
     st.session_state.session_saved = False
-    # user_code bleibt erhalten!
+    # Session-Zähler erhöhen
+    st.session_state.session_count += 1
+    # user_code und pretest_responses bleiben erhalten!
 
 
 def logout_user():
-    """Loggt den Nutzer aus (löscht auch Nutzercode)."""
+    """Loggt den Nutzer aus (löscht auch Nutzercode und Pretest)."""
     st.session_state.user_code = ""
     st.session_state.user_code_confirmed = False
+    # Pretest zurücksetzen
+    st.session_state.pretest_responses = {}
+    st.session_state.pretest_completed = False
+    st.session_state.pretest_completed_at = None
+    st.session_state.pretest_current_module = 0
+    st.session_state.session_count = 0
     reset_session()
 
 
@@ -173,12 +205,17 @@ def build_coach_input(
     now = datetime.now()
     recording_start = st.session_state.get("recording_start")
 
+    # Pretest-Daten für Coach-Input holen
+    pretest_data = get_pretest_data_for_coach_input()
+
     return {
-        # Neu: Nutzer-Identifikation
+        # Nutzer-Identifikation
         "user": {
             "code": st.session_state.get("user_code", ""),
             "is_anonymous": not st.session_state.get("user_code_confirmed", False),
         },
+        # NEU: Pretest-Daten (CEFR-Selbsteinschätzung, MASQ-Scores, etc.)
+        "pretest": pretest_data,
         "task_metadata": {
             "task_id": st.session_state.selected_task_id,
             "situation": task.get("situation"),
@@ -189,6 +226,7 @@ def build_coach_input(
         },
         "session_metadata": {
             "session_id": st.session_state.get("session_id"),
+            "session_number": st.session_state.get("session_count", 0),
             "mode": mode,
             "started_at": recording_start.isoformat() if recording_start else None,
             "ended_at": now.isoformat(),
@@ -251,6 +289,7 @@ def send_session_to_airtable() -> tuple[bool, str]:
         payload = {
             "session_id": st.session_state.get("session_id", ""),
             "user_code": st.session_state.get("user_code", "ANON"),
+            "session_number": st.session_state.get("session_count", 0),
             "created_at": datetime.now().isoformat(),
             "mode": session_meta.get("mode", "unknown"),
             "task_id": task_meta.get("task_id", ""),
@@ -267,6 +306,10 @@ def send_session_to_airtable() -> tuple[bool, str]:
             "cefr_score": cefr_score,
             "metrics_json": json.dumps(kleiner_baer_result.get("disce_metrics", {})),
         }
+        
+        # NEU: Pretest-Daten hinzufügen
+        pretest_data = get_pretest_data_for_airtable()
+        payload.update(pretest_data)
         
         # An Make Webhook senden
         response = requests.post(
@@ -326,6 +369,12 @@ with st.sidebar:
         # Eingeloggt: Code anzeigen
         st.success(f"✅ Eingeloggt als: **{st.session_state.user_code}**")
         st.caption("Dein Code verknüpft alle deine Sessions.")
+        
+        # Pretest-Status anzeigen
+        if st.session_state.get("pretest_completed", False):
+            cefr_self = get_pretest_response("cefr_speaking", "–")
+            st.info(f"📊 Selbsteinschätzung: **{cefr_self}**")
+            st.caption(f"Sessions: {st.session_state.get('session_count', 0)}")
 
         if st.button("🚪 Ausloggen", use_container_width=True):
             logout_user()
@@ -396,17 +445,12 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption("Großer Bär v0.3 – mit OpenAI Integration")
+    st.caption("Großer Bär v0.4 – mit Pretest & OpenAI Integration")
 
 
 # =============================================================================
-# CHECK: Nutzercode erforderlich?
+# CHECK: Nutzercode erforderlich
 # =============================================================================
-
-# Optional: Wenn du willst, dass ein Code PFLICHT ist, aktiviere diesen Block:
-# if not st.session_state.user_code_confirmed:
-#     st.warning("👈 Bitte gib zuerst deinen Nutzercode in der Sidebar ein.")
-#     st.stop()
 
 # Aktuell: Code ist optional, aber empfohlen
 if not st.session_state.user_code_confirmed:
@@ -414,6 +458,25 @@ if not st.session_state.user_code_confirmed:
         "💡 **Tipp:** Gib in der Sidebar deinen Nutzercode ein, "
         "um deine Sessions zu verknüpfen und deinen Fortschritt zu tracken."
     )
+
+
+# =============================================================================
+# PRETEST FLOW (vor dem Hauptinhalt)
+# =============================================================================
+
+# Pretest nur anzeigen, wenn Nutzer eingeloggt ist
+if st.session_state.user_code_confirmed:
+    
+    # Prüfe ob Pretest nötig
+    if should_show_pretest(PRETEST_CONFIG):
+        pretest_done = render_pretest(PRETEST_CONFIG)
+        if not pretest_done:
+            st.stop()  # Blockiere Hauptinhalt bis Pretest fertig
+    
+    # Prüfe Level-Recheck (alle N Sessions)
+    if st.session_state.get("pretest_show_recheck", False):
+        render_level_recheck(PRETEST_CONFIG)
+        st.markdown("---")
 
 
 # =============================================================================
@@ -659,6 +722,8 @@ elif st.session_state.phase == "feedback":
                         "learner_goal": st.session_state.learner_goal,
                         "learner_context": st.session_state.learner_context,
                         "user_code": st.session_state.user_code,
+                        # NEU: MASQ-Scores aus Pretest
+                        "masq_scores": st.session_state.get("pretest_responses", {}).get("masq_scores", {}),
                     },
                 )
                 st.session_state.kleiner_baer_result = kb_result
@@ -719,6 +784,8 @@ elif st.session_state.phase == "feedback":
                         "learner_goal": st.session_state.learner_goal,
                         "learner_context": st.session_state.learner_context,
                         "user_code": st.session_state.user_code,
+                        # NEU: MASQ-Scores aus Pretest
+                        "masq_scores": st.session_state.get("pretest_responses", {}).get("masq_scores", {}),
                     },
                 )
                 st.session_state.kleiner_baer_result = kb_result
@@ -790,10 +857,16 @@ elif st.session_state.phase == "feedback":
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if cefr_from_kb:
+                # Zeige auch Selbsteinschätzung zum Vergleich
+                cefr_self = get_pretest_response("cefr_speaking")
+                delta_text = f"Score: {cefr_from_kb.get('score', 0.0):.2f}"
+                if cefr_self:
+                    delta_text += f" | Selbst: {cefr_self}"
+                
                 st.metric(
                     "Geschätztes Niveau",
                     cefr_from_kb.get("label", "–"),
-                    delta=f"Score: {cefr_from_kb.get('score', 0.0):.2f}",
+                    delta=delta_text,
                 )
             elif hasattr(feedback, "cefr_label") and feedback.cefr_label:
                 st.metric(
@@ -897,6 +970,34 @@ elif st.session_state.phase == "feedback":
         else:
             st.info("Noch keine Disce-Metriken verfügbar.")
 
+        # NEU: MASQ-Profil anzeigen (wenn Pretest abgeschlossen)
+        st.markdown("---")
+        st.subheader("Metakognitives Profil (MASQ)")
+        
+        masq_scores = st.session_state.get("pretest_responses", {}).get("masq_scores", {})
+        if masq_scores and masq_scores.get("factors"):
+            factors = masq_scores.get("factors", {})
+            cols = st.columns(5)
+            factor_labels = {
+                "PE": ("Planung", "Planning & Evaluation"),
+                "PS": ("Problemlösung", "Problem-Solving"),
+                "PK": ("Selbstbild", "Person Knowledge"),
+                "DA": ("Fokus", "Directed Attention"),
+                "MT": ("Übersetzung", "Mental Translation"),
+            }
+            for col, (key, (short, full)) in zip(cols, factor_labels.items()):
+                if key in factors:
+                    mean = factors[key].get("mean", 0)
+                    # MT ist negativ (niedrig = gut)
+                    if key == "MT":
+                        col.metric(short, f"{mean:.1f}/5", delta="↓ besser", delta_color="inverse", help=full)
+                    else:
+                        col.metric(short, f"{mean:.1f}/5", help=full)
+            
+            st.caption(f"Gesamtscore: {masq_scores.get('total', 0)} – {masq_scores.get('level_label', '')}")
+        else:
+            st.info("MASQ-Profil wird nach dem Pretest angezeigt.")
+
         if MOCK_MODE:
             st.caption(
                 "ℹ️ Mock-Modus: Audio-Prosodie ist noch simuliert – "
@@ -910,7 +1011,7 @@ elif st.session_state.phase == "feedback":
         st.subheader("LLM-Coach Input (JSON)")
         st.write(
             "Dieser Block wird an die LLM-Coach-API gesendet. "
-            "Er enthält Task-Metadaten, Transkript und deterministische Analyse "
+            "Er enthält Task-Metadaten, Transkript, Pretest-Daten und deterministische Analyse "
             "nach dem Disce-Diagnostikmodell."
         )
 
@@ -933,18 +1034,33 @@ elif st.session_state.phase == "feedback":
         "Das hilft dir, das Gelernte zu verankern."
     )
 
-    # Leitfragen als Inspiration – angepasst ans Lernziel
+    # Leitfragen als Inspiration – angepasst ans Lernziel + MASQ-basiert
     with st.expander("💡 Leitfragen zur Reflexion", expanded=False):
         reflection_prompts = """
-- **Was ist mir gut gelungen?** (z.B. Wortwahl, Struktur, Flüssigkeit)
-- **Was war schwierig?** (z.B. ein bestimmtes Wort, die Satzstellung, das Tempo)
-- **Was will ich beim nächsten Mal anders machen?**
-- **Welchen konkreten Aspekt übe ich als Nächstes?**
+**Was ist mir gut gelungen?**
+- Wortwahl, Struktur, Flüssigkeit
+
+**Was war schwierig?**
+- Ein bestimmtes Wort, die Satzstellung, das Tempo
+
+**Strategien (Problem-Solving):**
+- Hast du Wörter umschrieben, wenn dir etwas nicht eingefallen ist?
+- Hast du dich selbst korrigiert?
+
+**Mentale Übersetzung:**
+- Hast du während des Sprechens im Kopf übersetzt?
+- Konntest du direkt auf Deutsch denken?
+
+**Fokus & Konzentration:**
+- Konntest du dich auf die Aufgabe konzentrieren?
+- Warst du abgelenkt?
+
+**Was will ich beim nächsten Mal anders machen?**
 """
         # Falls Lernziel vorhanden, zusätzliche Frage
         if st.session_state.learner_goal:
             reflection_prompts += (
-                f"\n- **Bezogen auf dein Ziel** "
+                f"\n**Bezogen auf dein Ziel** "
                 f"({st.session_state.learner_goal}): Wie gut hast du es erreicht?"
             )
 
@@ -1026,5 +1142,5 @@ elif st.session_state.phase == "feedback":
 
 st.markdown("---")
 st.caption(
-    "🐻 Großer Bär v0.3 – Kleiner Bär Textanalyse + OpenAI (Whisper & GPT-4o-mini)"
+    "🐻 Großer Bär v0.4 – Pretest + Kleiner Bär Textanalyse + OpenAI (Whisper & GPT-4o-mini)"
 )
