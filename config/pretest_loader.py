@@ -454,29 +454,42 @@ def get_pretest_data_for_airtable() -> dict:
     responses = st.session_state.get("pretest_responses", {})
     
     # Flache Struktur für Airtable
+    # WICHTIG: Keine None-Werte! Airtable braucht echte Defaults.
     data = {
         "pretest_completed": st.session_state.get("pretest_completed", False),
-        "pretest_completed_at": st.session_state.get("pretest_completed_at"),
+        "pretest_completed_at": st.session_state.get("pretest_completed_at") or "",  # FIX: None → ""
     }
     
-    # CEFR-Felder
-    data["cefr_self_overall"] = get_response("cefr_overall")
-    data["cefr_self_speaking"] = get_response("cefr_speaking")
-    data["has_official_cert"] = get_response("has_official_cert", False)
-    data["official_cert_type"] = get_response("official_cert_type", "")
-    data["learning_duration_months"] = get_response("learning_duration_months", 0)
-    data["learning_context"] = ",".join(get_response("learning_context", []))
-    data["native_language"] = get_response("native_language", "")
-    data["other_languages"] = get_response("other_languages", "")
+    # CEFR-Felder – mit expliziten Fallbacks für None
+    data["cefr_self_overall"] = get_response("cefr_overall") or ""  # FIX
+    data["cefr_self_speaking"] = get_response("cefr_speaking") or ""  # FIX
+    data["has_official_cert"] = get_response("has_official_cert", False) or False
+    data["official_cert_type"] = get_response("official_cert_type", "") or ""
+    data["learning_duration_months"] = get_response("learning_duration_months", 0) or 0
+    data["learning_context"] = ",".join(get_response("learning_context", []) or [])
+    data["native_language"] = get_response("native_language", "") or ""
+    data["other_languages"] = get_response("other_languages", "") or ""
     
-    # MASQ-Scores
+    # MASQ-Scores – IMMER mit Defaults initialisieren (FIX)
+    data["masq_total"] = 0
+    data["masq_level"] = ""
+    data["masq_pe_mean"] = 0.0
+    data["masq_ps_mean"] = 0.0
+    data["masq_pk_mean"] = 0.0
+    data["masq_mt_mean"] = 0.0
+    data["masq_da_mean"] = 0.0
+    
+    # Überschreibe mit echten Werten wenn vorhanden
     masq = responses.get("masq_scores", {})
     if masq:
-        data["masq_total"] = masq.get("total", 0)
-        data["masq_level"] = masq.get("level", "")
+        data["masq_total"] = masq.get("total", 0) or 0
+        data["masq_level"] = masq.get("level", "") or ""
         
-        for factor, scores in masq.get("factors", {}).items():
-            data[f"masq_{factor.lower()}_mean"] = scores.get("mean", 0)
+        factors = masq.get("factors", {})
+        for factor in ["PE", "PS", "PK", "MT", "DA"]:
+            if factor in factors:
+                mean_value = factors[factor].get("mean", 0)
+                data[f"masq_{factor.lower()}_mean"] = float(mean_value) if mean_value else 0.0
     
     return data
 
