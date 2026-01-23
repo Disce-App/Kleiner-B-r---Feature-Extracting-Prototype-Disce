@@ -273,34 +273,47 @@ def render_module(module: dict, key_prefix: str = "") -> dict:
 # =============================================================================
 
 def calculate_masq_scores(responses: dict, scoring_config: dict) -> dict:
-    """Berechnet die MASQ-Scores basierend auf den Antworten."""
+    """Berechnet die MASQ-Scores basierend auf den Antworten.
+
+    Erwartet als responses entweder:
+    - rohe Zahlen (int), oder
+    - Dicts wie {"value": int, "answered_at": "..."} aus save_response().
+    """
     factors = scoring_config.get("factors", {})
-    
     factor_scores = {}
-    
+
     for factor_name, question_ids in factors.items():
         values = []
+
         for q_id in question_ids:
-            value = responses.get(q_id)
-            if value is not None:
+            raw = responses.get(q_id)
+
+            # save_response legt Dicts ab → extrahiere den Wert
+            if isinstance(raw, dict):
+                value = raw.get("value")
+            else:
+                value = raw
+
+            # Nur echte Zahlen berücksichtigen
+            if isinstance(value, (int, float)):
                 values.append(value)
-        
+
         if values:
             factor_scores[factor_name] = {
                 "mean": sum(values) / len(values),
                 "sum": sum(values),
-                "items": len(values)
+                "items": len(values),
             }
-    
+
     # Gesamtscore: (PE + PS + PK + DA) - MT
     total = 0
     for factor in ["PE", "PS", "PK", "DA"]:
         if factor in factor_scores:
             total += factor_scores[factor]["sum"]
-    
+
     if "MT" in factor_scores:
         total -= factor_scores["MT"]["sum"]
-    
+
     # Interpretation
     interpretation_config = scoring_config.get("interpretation", {})
     level = "medium"
@@ -308,12 +321,12 @@ def calculate_masq_scores(responses: dict, scoring_config: dict) -> dict:
         level = "high"
     elif total < interpretation_config.get("low", {}).get("max", 45):
         level = "low"
-    
+
     return {
         "factors": factor_scores,
         "total": total,
         "level": level,
-        "level_label": interpretation_config.get(level, {}).get("label", level)
+        "level_label": interpretation_config.get(level, {}).get("label", level),
     }
 
 
