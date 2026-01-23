@@ -36,6 +36,21 @@ from config.pretest_loader import (
     get_response as get_pretest_response,
 )
 
+# NEU: App-Config System
+from config.app_config import (
+    init_app_config,
+    get_config,
+    set_config,
+    is_mock_mode,
+    is_debug_mode,
+    should_skip_pretest,
+    is_airtable_enabled,
+    log_payload,
+    log_llm_call,
+    log_error,
+    log_event,
+)
+
 # OpenAI Services (Whisper + GPT)
 try:
     from openai_services import transcribe_audio, generate_coach_feedback, check_api_connection
@@ -61,6 +76,12 @@ st.set_page_config(
     page_icon="🐻",
     layout="wide",
 )
+
+# =============================================================================
+# APP CONFIG INITIALISIERUNG (NEU)
+# =============================================================================
+
+init_app_config()
 
 # =============================================================================
 # SESSION STATE INITIALISIERUNG
@@ -176,6 +197,9 @@ def reset_session():
     # Session-Zähler erhöhen
     st.session_state.session_count += 1
     # user_code und pretest_responses bleiben erhalten!
+    
+    # Event loggen
+    log_event("session", "Session zurückgesetzt", {"session_count": st.session_state.session_count})
 
 
 def logout_user():
@@ -189,6 +213,9 @@ def logout_user():
     st.session_state.pretest_current_module = 0
     st.session_state.session_count = 0
     reset_session()
+    
+    # Event loggen
+    log_event("auth", "User ausgeloggt")
 
 
 def build_coach_input(
@@ -268,6 +295,11 @@ def send_session_to_airtable() -> tuple[bool, str]:
     Sendet die Session-Daten an Make Webhook → Airtable.
     Make verteilt die Daten auf pretest_responses und Sessions.
     """
+    # NEU: Prüfe ob Airtable aktiviert ist
+    if not is_airtable_enabled():
+        log_event("airtable", "Airtable deaktiviert – Senden übersprungen")
+        return True, "Session lokal gespeichert (Airtable deaktiviert)"
+    
     try:
         coach_input = st.session_state.get("coach_input", {})
         kleiner_baer_result = st.session_state.get("kleiner_baer_result", {})
@@ -339,16 +371,29 @@ def send_session_to_airtable() -> tuple[bool, str]:
             timeout=10,
         )
         
+        # NEU: Payload loggen
+        response_data = None
+        try:
+            response_data = response.json()
+        except:
+            response_data = {"status_code": response.status_code, "text": response.text[:200]}
+        
+        log_payload("make_webhook", payload, response_data)
+        
         if response.status_code == 200:
             return True, "Session erfolgreich gespeichert!"
         else:
+            log_error("airtable", f"HTTP {response.status_code}", {"response": response.text[:500]})
             return False, f"Fehler beim Speichern: HTTP {response.status_code}"
             
     except requests.exceptions.Timeout:
+        log_error("airtable", "Timeout", {"url": MAKE_WEBHOOK_URL})
         return False, "Timeout: Server antwortet nicht."
     except requests.exceptions.RequestException as e:
+        log_error("airtable", "RequestException", {"error": str(e)})
         return False, f"Verbindungsfehler: {str(e)}"
     except Exception as e:
+        log_error("airtable", "Exception", {"error": str(e)})
         return False, f"Fehler: {str(e)}"
 
 # =============================================================================
@@ -423,6 +468,7 @@ with st.sidebar:
                 if is_valid:
                     st.session_state.user_code = user_code_input.upper()
                     st.session_state.user_code_confirmed = True
+                    log_event("auth", "User eingeloggt", {"user_code": user_code_input.upper()})
                     st.rerun()
                 else:
                     st.error(message)
@@ -432,6 +478,7 @@ with st.sidebar:
                 new_code = generate_user_code()
                 st.session_state.user_code = new_code
                 st.session_state.user_code_confirmed = True
+                log_event("auth", "User generiert", {"user_code": new_code})
                 st.rerun()
 
         st.caption("💡 Merke dir deinen Code, um später weiterzumachen!")
@@ -439,23 +486,36 @@ with st.sidebar:
     st.markdown("---")
 
     # -------------------------------------------------------------------------
-    # EINSTELLUNGEN
+    # EINSTELLUNGEN (jetzt aus Config-System)
     # -------------------------------------------------------------------------
     st.header("⚙️ Einstellungen")
 
-    MOCK_MODE = st.checkbox(
-        "Mock-Modus (ohne APIs)",
-        value=True,
+    # NEU: Mock-Modus aus Config-System lesen/schreiben
+    mock_mode_toggle = st.checkbox(
+        "🎭 Mock-Modus (ohne APIs)",
+        value=is_mock_mode(),
         help="Aktiviert Beispiel-Transkripte und Mock-Feedback für Testing",
     )
+    set_config("mock_mode", mock_mode_toggle)
 
     # API-Status anzeigen
-    if not MOCK_MODE:
+    if not is_mock_mode():
         if OPENAI_AVAILABLE:
             st.success("✅ OpenAI API verfügbar")
         else:
             st.error("❌ OpenAI API nicht verfügbar")
             st.caption("Aktiviere Mock-Modus oder prüfe openai_services.py")
+
+    # NEU: Debug-Modus Toggle (nur für Entwickler)
+    if is_debug_mode():
+        st.warning("🐛 Debug-Modus aktiv")
+        
+        # Zeige aktuelle Config
+        with st.expander("🔧 Debug-Info"):
+            st.caption(f"Session ID: {st.session_state.get('session_id', '–')[:8]}...")
+            st.caption(f"Phase: {st.session_state.get('phase', '–')}")
+            st.caption(f"Airtable: {'✅' if is_airtable_enabled() else '❌'}")
+            st.caption(f"Pretest: {'✅' if st.session_state.get('pretest_completed') else '❌'}")
 
     st.markdown("---")
 
@@ -463,8 +523,12 @@ with st.sidebar:
         reset_session()
         st.rerun()
 
+    # NEU: Link zum Admin-Dashboard
     st.markdown("---")
-    st.caption("Großer Bär v0.4 – mit Pretest & OpenAI Integration")
+    st.page_link("pages/admin.py", label="🛠️ Admin Dashboard", icon="⚙️")
+
+    st.markdown("---")
+    st.caption("Großer Bär v0.5 – mit Admin-Dashboard")
 
 
 # =============================================================================
@@ -483,19 +547,25 @@ if not st.session_state.user_code_confirmed:
 # PRETEST FLOW (vor dem Hauptinhalt)
 # =============================================================================
 
-# Pretest nur anzeigen, wenn Nutzer eingeloggt ist
+# Pretest nur anzeigen, wenn Nutzer eingeloggt ist UND Pretest nicht übersprungen
 if st.session_state.user_code_confirmed:
     
-    # Prüfe ob Pretest nötig
-    if should_show_pretest(PRETEST_CONFIG):
-        pretest_done = render_pretest(PRETEST_CONFIG)
-        if not pretest_done:
-            st.stop()  # Blockiere Hauptinhalt bis Pretest fertig
-    
-    # Prüfe Level-Recheck (alle N Sessions)
-    if st.session_state.get("pretest_show_recheck", False):
-        render_level_recheck(PRETEST_CONFIG)
-        st.markdown("---")
+    # NEU: Prüfe ob Pretest übersprungen werden soll (aus Admin-Config)
+    if not should_skip_pretest():
+        # Prüfe ob Pretest nötig
+        if should_show_pretest(PRETEST_CONFIG):
+            pretest_done = render_pretest(PRETEST_CONFIG)
+            if not pretest_done:
+                st.stop()  # Blockiere Hauptinhalt bis Pretest fertig
+        
+        # Prüfe Level-Recheck (alle N Sessions)
+        if st.session_state.get("pretest_show_recheck", False):
+            render_level_recheck(PRETEST_CONFIG)
+            st.markdown("---")
+    else:
+        # Debug-Hinweis wenn Pretest übersprungen
+        if is_debug_mode():
+            st.warning("⏭️ Pretest wird übersprungen (Admin-Einstellung)")
 
 
 # =============================================================================
@@ -601,6 +671,9 @@ if st.session_state.phase == "select":
             st.session_state.selected_task_id = task_id
             st.session_state.phase = "record"
             st.session_state.recording_start = datetime.now()
+            
+            # Event loggen
+            log_event("session", "Aufnahme gestartet", {"task_id": task_id})
             st.rerun()
 
 
@@ -630,7 +703,7 @@ elif st.session_state.phase == "record":
     st.markdown("---")
 
     # Audio-Aufnahme oder Mock-Modus
-    if not MOCK_MODE:
+    if not is_mock_mode():
         # Echter Modus: Audio-Aufnahme
         try:
             from audio_recorder_streamlit import audio_recorder
@@ -719,7 +792,7 @@ elif st.session_state.phase == "feedback":
     if st.session_state.feedback_result is None:
         with st.spinner("🔍 Analysiere deine Aufnahme..."):
 
-            if MOCK_MODE:
+            if is_mock_mode():
                 # =============================================================
                 # MOCK-MODUS (wie bisher)
                 # =============================================================
@@ -770,6 +843,9 @@ elif st.session_state.phase == "feedback":
 
                 st.session_state.feedback_result = feedback
                 st.session_state.transcript_text = transcript_text
+                
+                # NEU: Mock-LLM-Call loggen
+                log_llm_call("mock_feedback", coach_input, "Mock-Feedback generiert")
 
             else:
                 # =============================================================
@@ -781,8 +857,10 @@ elif st.session_state.phase == "feedback":
                     with st.spinner("🎙️ Transkribiere Audio mit Whisper..."):
                         try:
                             transcript_text = transcribe_audio(st.session_state.audio_bytes)
+                            log_event("whisper", "Transkription erfolgreich", {"length": len(transcript_text)})
                         except Exception as e:
                             st.error(f"❌ Whisper-Fehler: {str(e)}")
+                            log_error("whisper", str(e))
                             transcript_text = st.session_state.transcript or "Transkription fehlgeschlagen."
                 else:
                     # Fallback: Text aus Mock-Eingabe oder Platzhalter
@@ -828,8 +906,13 @@ elif st.session_state.phase == "feedback":
                         try:
                             gpt_feedback_text = generate_coach_feedback(coach_input)
                             feedback = GPTFeedback(gpt_feedback_text, kb_result.get("cefr", {}))
+                            
+                            # NEU: LLM-Call loggen
+                            log_llm_call("gpt_coach", coach_input, gpt_feedback_text)
+                            
                         except Exception as e:
                             st.error(f"❌ GPT-Fehler: {str(e)}")
+                            log_error("gpt", str(e), {"coach_input_keys": list(coach_input.keys())})
                             # Fallback auf Mock-Feedback
                             feedback = generate_feedback(
                                 transcript=transcript_text,
@@ -864,9 +947,17 @@ elif st.session_state.phase == "feedback":
         st.info(f"🎯 **Dein Fokus war:** {st.session_state.learner_goal}")
 
     # Tabs für verschiedene Ansichten
-    tab_feedback, tab_transcript, tab_metrics, tab_api = st.tabs(
-        ["💬 Feedback", "📝 Transkript", "📊 Metriken", "🔌 LLM-Input"]
-    )
+    tabs_list = ["💬 Feedback", "📝 Transkript", "📊 Metriken"]
+    
+    # NEU: LLM-Input Tab nur anzeigen wenn in Config aktiviert
+    if get_config("show_llm_input_tab", True):
+        tabs_list.append("🔌 LLM-Input")
+    
+    tabs = st.tabs(tabs_list)
+    tab_feedback = tabs[0]
+    tab_transcript = tabs[1]
+    tab_metrics = tabs[2]
+    tab_api = tabs[3] if len(tabs) > 3 else None
 
     # -------------------------------------------------------------------------
     # Tab: Feedback
@@ -911,7 +1002,7 @@ elif st.session_state.phase == "feedback":
         # Hinweis zum Modus
         if hasattr(feedback, "is_mock") and feedback.is_mock:
             st.caption("ℹ️ Mock-Modus: Dies ist simuliertes Feedback für Testing.")
-        elif not MOCK_MODE and OPENAI_AVAILABLE:
+        elif not is_mock_mode() and OPENAI_AVAILABLE:
             st.caption("🤖 Feedback generiert mit GPT-4o-mini")
 
     # -------------------------------------------------------------------------
@@ -930,9 +1021,9 @@ elif st.session_state.phase == "feedback":
         with col2:
             st.metric("Dauer", f"{duration:.0f}s")
 
-        if MOCK_MODE:
+        if is_mock_mode():
             st.caption("ℹ️ Mock-Modus: Eingegebener Text")
-        elif not MOCK_MODE and OPENAI_AVAILABLE:
+        elif not is_mock_mode() and OPENAI_AVAILABLE:
             st.caption("🎙️ Transkribiert mit Whisper")
 
     # -------------------------------------------------------------------------
@@ -959,7 +1050,7 @@ elif st.session_state.phase == "feedback":
             st.metric("Füllwörter", filler_count, help="ähm, also, quasi, etc.")
 
         with col3:
-            st.metric("Flüssigkeit", "–" if MOCK_MODE else "75%")
+            st.metric("Flüssigkeit", "–" if is_mock_mode() else "75%")
 
         st.markdown("---")
 
@@ -1017,30 +1108,31 @@ elif st.session_state.phase == "feedback":
         else:
             st.info("MASQ-Profil wird nach dem Pretest angezeigt.")
 
-        if MOCK_MODE:
+        if is_mock_mode():
             st.caption(
                 "ℹ️ Mock-Modus: Audio-Prosodie ist noch simuliert – "
                 "Textmetriken sind bereits echt."
             )
 
     # -------------------------------------------------------------------------
-    # Tab: LLM-Input
+    # Tab: LLM-Input (nur wenn aktiviert)
     # -------------------------------------------------------------------------
-    with tab_api:
-        st.subheader("LLM-Coach Input (JSON)")
-        st.write(
-            "Dieser Block wird an die LLM-Coach-API gesendet. "
-            "Er enthält Task-Metadaten, Transkript, Pretest-Daten und deterministische Analyse "
-            "nach dem Disce-Diagnostikmodell."
-        )
-
-        if coach_input:
-            st.json(coach_input)
-        else:
-            st.info(
-                "Noch kein Coach-Input verfügbar. "
-                "Bitte zuerst eine Aufgabe abschließen."
+    if tab_api:
+        with tab_api:
+            st.subheader("LLM-Coach Input (JSON)")
+            st.write(
+                "Dieser Block wird an die LLM-Coach-API gesendet. "
+                "Er enthält Task-Metadaten, Transkript, Pretest-Daten und deterministische Analyse "
+                "nach dem Disce-Diagnostikmodell."
             )
+
+            if coach_input:
+                st.json(coach_input)
+            else:
+                st.info(
+                    "Noch kein Coach-Input verfügbar. "
+                    "Bitte zuerst eine Aufgabe abschließen."
+                )
 
     # =========================================================================
     # REFLEXIONSFELD (nach den Tabs)
@@ -1101,6 +1193,7 @@ elif st.session_state.phase == "feedback":
             st.session_state.reflection_text = reflection_input
             update_coach_input_with_reflection(reflection_input)
             st.session_state.reflection_saved = True
+            log_event("session", "Reflexion gespeichert", {"length": len(reflection_input)})
             st.rerun()
 
     # Bestätigung anzeigen
@@ -1161,5 +1254,5 @@ elif st.session_state.phase == "feedback":
 
 st.markdown("---")
 st.caption(
-    "🐻 Großer Bär v0.4 – Pretest + Kleiner Bär Textanalyse + OpenAI (Whisper & GPT-4o-mini)"
+    "🐻 Großer Bär v0.5 – mit Admin-Dashboard, Pretest + Kleiner Bär Textanalyse + OpenAI"
 )
