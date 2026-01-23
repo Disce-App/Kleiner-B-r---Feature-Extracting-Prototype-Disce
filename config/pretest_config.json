@@ -1,0 +1,274 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-01-23",
+  "description": "Pretest-Konfiguration für Großer Bär – flexibel erweiterbar",
+  
+  "settings": {
+    "show_progress_bar": true,
+    "allow_skip_optional": true,
+    "level_recheck_after_sessions": 5
+  },
+
+  "modules": [
+    {
+      "id": "cefr_self_assessment",
+      "name": "CEFR-Selbsteinschätzung",
+      "description": "Einschätzung des eigenen Sprachniveaus",
+      "enabled": true,
+      "required": true,
+      "frequency": "once_per_user",
+      "source": "Council of Europe CEFR Self-Assessment Grid",
+      "questions": [
+        {
+          "id": "cefr_overall",
+          "type": "single_select",
+          "label": "Wie schätzt du dein Deutsch insgesamt ein?",
+          "description": "Wähle das Niveau, das am besten zu dir passt.",
+          "options": [
+            {"value": "A1", "label": "A1 – Anfänger"},
+            {"value": "A2", "label": "A2 – Grundlagen"},
+            {"value": "B1", "label": "B1 – Mittelstufe"},
+            {"value": "B1+", "label": "B1+ – Gute Mittelstufe"},
+            {"value": "B2", "label": "B2 – Selbstständig"},
+            {"value": "B2+", "label": "B2+ – Gutes Selbstständig"},
+            {"value": "C1", "label": "C1 – Fortgeschritten"},
+            {"value": "C1+", "label": "C1+ – Sehr fortgeschritten"},
+            {"value": "C2", "label": "C2 – Annähernd muttersprachlich"}
+          ],
+          "required": true
+        },
+        {
+          "id": "cefr_speaking",
+          "type": "single_select",
+          "label": "Wie schätzt du speziell dein Sprechen ein?",
+          "description": "Fokus auf mündliche Produktion und Interaktion.",
+          "options": [
+            {"value": "A1", "label": "A1 – Einfache Sätze"},
+            {"value": "A2", "label": "A2 – Kurze Gespräche"},
+            {"value": "B1", "label": "B1 – Alltägliche Themen"},
+            {"value": "B1+", "label": "B1+ – Flüssiger im Alltag"},
+            {"value": "B2", "label": "B2 – Klar und detailliert"},
+            {"value": "B2+", "label": "B2+ – Spontan und fließend"},
+            {"value": "C1", "label": "C1 – Flexibel und präzise"},
+            {"value": "C1+", "label": "C1+ – Nuanciert"},
+            {"value": "C2", "label": "C2 – Mühelos"}
+          ],
+          "required": true
+        },
+        {
+          "id": "has_official_cert",
+          "type": "boolean",
+          "label": "Hast du eine offizielle Deutschprüfung abgelegt?",
+          "description": "z.B. Goethe-Zertifikat, telc, TestDaF, DSH, ÖSD",
+          "required": true
+        },
+        {
+          "id": "official_cert_type",
+          "type": "text",
+          "label": "Welche Prüfung und welches Ergebnis?",
+          "placeholder": "z.B. Goethe B2 (bestanden), TestDaF 4x4",
+          "show_if": {"field": "has_official_cert", "value": true},
+          "required": false
+        },
+        {
+          "id": "learning_duration_months",
+          "type": "number",
+          "label": "Wie lange lernst du schon Deutsch?",
+          "description": "Angabe in Monaten (z.B. 24 für 2 Jahre)",
+          "min": 0,
+          "max": 600,
+          "required": true
+        },
+        {
+          "id": "learning_context",
+          "type": "multi_select",
+          "label": "In welchem Kontext lernst/nutzt du Deutsch?",
+          "description": "Mehrfachauswahl möglich.",
+          "options": [
+            {"value": "course", "label": "Sprachkurs / Sprachschule"},
+            {"value": "university", "label": "Universität / Studium"},
+            {"value": "self_study", "label": "Selbststudium"},
+            {"value": "work", "label": "Arbeit / Beruf"},
+            {"value": "family", "label": "Partner:in / Familie"},
+            {"value": "living_dach", "label": "Ich lebe in D-A-CH"},
+            {"value": "media", "label": "Medien (Filme, Podcasts, Bücher)"}
+          ],
+          "required": true
+        },
+        {
+          "id": "native_language",
+          "type": "text",
+          "label": "Was ist deine Muttersprache?",
+          "placeholder": "z.B. Türkisch, Englisch, Arabisch",
+          "required": true
+        },
+        {
+          "id": "other_languages",
+          "type": "text",
+          "label": "Welche anderen Sprachen sprichst du?",
+          "placeholder": "z.B. Englisch (C1), Französisch (B1)",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "masq_short",
+      "name": "MASQ – Metakognitive Awareness",
+      "description": "Kurzversion des Metacognitive Awareness Speaking Questionnaire",
+      "enabled": true,
+      "required": true,
+      "frequency": "once_per_user",
+      "source": "Sulistyowati et al. (2021) – Adapted",
+      "instructions": "Wie sehr treffen die folgenden Aussagen auf dich zu, wenn du Deutsch sprichst?",
+      "scale": {
+        "type": "likert_5",
+        "anchors": {
+          "1": "trifft gar nicht zu",
+          "2": "trifft eher nicht zu",
+          "3": "teils/teils",
+          "4": "trifft eher zu",
+          "5": "trifft voll zu"
+        }
+      },
+      "questions": [
+        {
+          "id": "masq_pe_1",
+          "factor": "PE",
+          "factor_name": "Planning & Evaluation",
+          "label": "Vor dem Sprechen überlege ich mir, was ich sagen will und wie ich es strukturiere.",
+          "reverse_scored": false
+        },
+        {
+          "id": "masq_pe_2",
+          "factor": "PE",
+          "factor_name": "Planning & Evaluation",
+          "label": "Nach dem Sprechen denke ich darüber nach, was gut lief und was ich verbessern kann.",
+          "reverse_scored": false
+        },
+        {
+          "id": "masq_ps_1",
+          "factor": "PS",
+          "factor_name": "Problem-Solving",
+          "label": "Wenn mir ein Wort nicht einfällt, umschreibe ich es oder verwende ein Synonym.",
+          "reverse_scored": false
+        },
+        {
+          "id": "masq_ps_2",
+          "factor": "PS",
+          "factor_name": "Problem-Solving",
+          "label": "Wenn ich einen Fehler bemerke, korrigiere ich mich selbst.",
+          "reverse_scored": false
+        },
+        {
+          "id": "masq_ps_3",
+          "factor": "PS",
+          "factor_name": "Problem-Solving",
+          "label": "Ich nutze Beispiele oder Gesten, wenn ich etwas nicht erklären kann.",
+          "reverse_scored": false
+        },
+        {
+          "id": "masq_pk_1",
+          "factor": "PK",
+          "factor_name": "Person Knowledge",
+          "label": "Ich fühle mich sicher, wenn ich Deutsch spreche.",
+          "reverse_scored": false
+        },
+        {
+          "id": "masq_pk_2",
+          "factor": "PK",
+          "factor_name": "Person Knowledge",
+          "label": "Ich glaube, dass ich mein Sprechen verbessern kann, wenn ich übe.",
+          "reverse_scored": false
+        },
+        {
+          "id": "masq_pk_3",
+          "factor": "PK",
+          "factor_name": "Person Knowledge",
+          "label": "Ich werde nervös, wenn ich Deutsch sprechen muss.",
+          "reverse_scored": true
+        },
+        {
+          "id": "masq_mt_1",
+          "factor": "MT",
+          "factor_name": "Mental Translation",
+          "label": "Ich übersetze im Kopf aus meiner Muttersprache, bevor ich spreche.",
+          "reverse_scored": true
+        },
+        {
+          "id": "masq_mt_2",
+          "factor": "MT",
+          "factor_name": "Mental Translation",
+          "label": "Während ich spreche, denke ich in meiner Muttersprache.",
+          "reverse_scored": true
+        },
+        {
+          "id": "masq_da_1",
+          "factor": "DA",
+          "factor_name": "Directed Attention",
+          "label": "Ich kann mich beim Sprechen gut auf die Aufgabe konzentrieren.",
+          "reverse_scored": false
+        },
+        {
+          "id": "masq_da_2",
+          "factor": "DA",
+          "factor_name": "Directed Attention",
+          "label": "Wenn ich abgelenkt werde, finde ich schnell wieder meinen Fokus.",
+          "reverse_scored": false
+        }
+      ],
+      "scoring": {
+        "formula": "(PE + PS + PK + DA) - MT",
+        "factors": {
+          "PE": ["masq_pe_1", "masq_pe_2"],
+          "PS": ["masq_ps_1", "masq_ps_2", "masq_ps_3"],
+          "PK": ["masq_pk_1", "masq_pk_2", "masq_pk_3"],
+          "MT": ["masq_mt_1", "masq_mt_2"],
+          "DA": ["masq_da_1", "masq_da_2"]
+        },
+        "interpretation": {
+          "high": {"min": 70, "label": "Hohe metakognitive Awareness"},
+          "medium": {"min": 45, "max": 69, "label": "Mittlere metakognitive Awareness"},
+          "low": {"max": 44, "label": "Niedrige metakognitive Awareness"}
+        }
+      }
+    },
+    {
+      "id": "level_recheck",
+      "name": "Niveau-Check",
+      "description": "Regelmäßige Überprüfung der Selbsteinschätzung",
+      "enabled": true,
+      "required": false,
+      "frequency": "every_n_sessions",
+      "frequency_n": 5,
+      "questions": [
+        {
+          "id": "level_changed",
+          "type": "single_select",
+          "label": "Hat sich dein Niveau seit der letzten Einschätzung verändert?",
+          "options": [
+            {"value": "same", "label": "Nein, gleich geblieben"},
+            {"value": "improved", "label": "Ja, ich bin besser geworden"},
+            {"value": "declined", "label": "Ich bin unsicherer geworden"}
+          ],
+          "required": true
+        },
+        {
+          "id": "new_level",
+          "type": "single_select",
+          "label": "Wie schätzt du dich jetzt ein?",
+          "show_if": {"field": "level_changed", "value": ["improved", "declined"]},
+          "options": [
+            {"value": "B1", "label": "B1"},
+            {"value": "B1+", "label": "B1+"},
+            {"value": "B2", "label": "B2"},
+            {"value": "B2+", "label": "B2+"},
+            {"value": "C1", "label": "C1"},
+            {"value": "C1+", "label": "C1+"},
+            {"value": "C2", "label": "C2"}
+          ],
+          "required": true
+        }
+      ]
+    }
+  ]
+}
