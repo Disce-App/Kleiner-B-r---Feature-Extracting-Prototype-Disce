@@ -1,6 +1,6 @@
 # Repo Map
 
-> Automatisch generiert am 2026-01-24 13:48
+> Automatisch generiert am 2026-01-24 14:06
 > Root: `Kleiner-B-r---Feature-Extracting-Prototype-Disce/`
 
 ## Struktur
@@ -13,7 +13,12 @@
 │   ├── 📄 pretest_config.json
 │   └── 🐍 pretest_loader.py
 ├── 📁 docs/
-│   └── 📁 generated/
+│   ├── 📁 generated/
+│   │   ├── 📄 integrations.md
+│   │   ├── 📄 modules.md
+│   │   └── 📄 repo_map.md
+│   ├── 📄 architecture.md
+│   └── 📄 llm_context.md
 ├── 📁 grosser_baer/
 │   ├── 🐍 __init__.py
 │   ├── 🐍 audio_handler.py
