@@ -7,10 +7,10 @@
 # Hauptfarbe (Buttons, Links, Slider, Toggle)
 primaryColor = "#4CAF50"
 
-# Hintergrund der Hauptfläche
-backgroundColor = "#FFFFFF"
+# Hintergrund der Hauptfläche → CREME
+backgroundColor = "#FFFDF5"
 
-# Hintergrund der Sidebar + Expander + Karten
+# Hintergrund der Sidebar + Expander-Inhalt → HELLGRÜN
 secondaryBackgroundColor = "#E8F5E9"
 
 # Textfarbe
@@ -20,31 +20,12 @@ textColor = "#212121"
 font = "sans serif"
 
 
-# =============================================================================
-# Server-Einstellungen (optional)
-# =============================================================================
-
 [server]
-# Maximale Upload-Größe (MB) - wichtig für Audio
 maxUploadSize = 25
-
-# Browser automatisch öffnen (lokal)
 headless = true
 
-
-# =============================================================================
-# Browser-Einstellungen (optional)
-# =============================================================================
-
 [browser]
-# Infos in der Sidebar ausblenden
 gatherUsageStats = false
 
-
-# =============================================================================
-# Runner (optional)
-# =============================================================================
-
 [runner]
-# Bei Dateiänderung automatisch neu laden
 fastReruns = true
