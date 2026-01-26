@@ -11,7 +11,7 @@ primaryColor = "#4CAF50"
 backgroundColor = "#FFFDF5"
 
 # Hintergrund der Sidebar + Expander-Inhalt → HELLGRÜN
-secondaryBackgroundColor = "#E0F2F1"
+secondaryBackgroundColor = "#4CAF50"
 
 # Textfarbe
 textColor = "#212121"
