@@ -5,160 +5,84 @@ Jedes Template definiert Kontext, Aufgabe, Zeitrahmen und Bewertungsfokus.
 """
 
 TASK_TEMPLATES = {
-    "meeting_update": {
-        "id": "meeting_update",
-        "title": "Projekt-Update im Meeting",
-        "context": "Business",
-        "cefr_target": "B2-C1",
-        "icon": "📊",
-        "situation": (
-            "Sie sind in einem Team-Meeting mit 5 Kolleg:innen. "
-            "Ihre Projektleiterin bittet Sie, ein kurzes Update zum aktuellen "
-            "Stand Ihres Teilprojekts zu geben."
-        ),
-        "task": (
-            "Geben Sie ein strukturiertes Update: "
-            "(1) Was wurde erreicht? "
-            "(2) Wo stehen Sie gerade? "
-            "(3) Was sind die nächsten Schritte?"
-        ),
-        "time_seconds": 90,
-        "evaluation_focus": ["struktur", "fachsprache", "präzision"],
-        "register": "formell-kollegial",
-        "example_phrases": [
-            "Ich möchte kurz den aktuellen Stand zusammenfassen...",
-            "Was die nächsten Schritte betrifft...",
-            "Hier sehe ich noch Klärungsbedarf bei..."
-        ],
-        "meta_prompts": {
-            "plan": "Was sind die 3 wichtigsten Punkte, die Sie kommunizieren wollen?",
-            "monitor": "Achten Sie auf klare Übergänge zwischen den drei Teilen.",
-            "reflect": "Haben Sie alle drei Aspekte abgedeckt? Was würden Sie präziser formulieren?"
-        }
-    },
-    
-    "phone_complaint": {
-        "id": "phone_complaint",
-        "title": "Telefonische Reklamation",
-        "context": "Business",
-        "cefr_target": "B2",
-        "icon": "📞",
-        "situation": (
-            "Sie haben ein Produkt online bestellt, das beschädigt angekommen ist. "
-            "Sie rufen beim Kundenservice an, um das Problem zu klären und eine Lösung zu finden."
-        ),
-        "task": (
-            "Schildern Sie das Problem höflich aber bestimmt. "
-            "Erklären Sie, was passiert ist, und formulieren Sie klar, "
-            "welche Lösung Sie sich wünschen."
-        ),
-        "time_seconds": 60,
-        "evaluation_focus": ["höflichkeit", "bestimmtheit", "klarheit"],
-        "register": "formell-höflich",
-        "example_phrases": [
-            "Ich rufe an, weil ich leider ein Problem mit meiner Bestellung habe.",
-            "Ich würde mir wünschen, dass...",
-            "Wäre es möglich, dass Sie...?"
-        ],
-        "meta_prompts": {
-            "plan": "Wie können Sie bestimmt UND höflich zugleich sein?",
-            "monitor": "Achten Sie auf Konjunktiv II für höfliche Bitten.",
-            "reflect": "War Ihr Ton angemessen? Haben Sie Ihre Erwartung klar formuliert?"
-        }
-    },
-    
-    "job_interview_strength": {
-        "id": "job_interview_strength",
-        "title": "Vorstellungsgespräch: Stärken",
+    "cv_self_presentation": {
+        "id": "cv_self_presentation",
+        "title": "Lebenslauf vorstellen im Bewerbungsgespräch",
         "context": "Business",
         "cefr_target": "B2-C1",
         "icon": "💼",
         "situation": (
-            "Sie sind in einem Vorstellungsgespräch für eine Position, "
-            "die Sie sehr interessiert. Die Personalerin fragt: "
-            "'Was würden Sie als Ihre größte Stärke bezeichnen?'"
+            "Sie sind in einem Bewerbungsgespräch. "
+            "Die Personalerin sagt: „Erzählen Sie doch bitte kurz etwas über sich "
+            "und Ihren bisherigen Werdegang.“"
         ),
         "task": (
-            "Beantworten Sie die Frage überzeugend: "
-            "Nennen Sie eine Stärke, belegen Sie sie mit einem konkreten Beispiel, "
-            "und erklären Sie, wie diese Stärke für die Stelle relevant ist."
+            "Stellen Sie sich und Ihren beruflichen Werdegang in ca. 60–90 Sekunden vor. "
+            "Wählen Sie die wichtigsten Stationen aus und führen Sie zu der Rolle hin, "
+            "für die Sie sich bewerben."
         ),
         "time_seconds": 90,
-        "evaluation_focus": ["überzeugungskraft", "konkretheit", "selbstpräsentation"],
+        "evaluation_focus": [
+            "Aufgabenerfüllung (Werdegang + aktuelles Profil klar?)",
+            "Struktur & roter Faden",
+            "Ton & Wirkung im Bewerbungskontext",
+            "Klarheit der Sprache (Zeitformen, Präzision)",
+        ],
         "register": "formell-professionell",
         "example_phrases": [
-            "Eine meiner größten Stärken ist...",
-            "Das hat sich zum Beispiel gezeigt, als ich...",
-            "Ich denke, das ist besonders relevant für diese Position, weil..."
+            "Ich bin derzeit …",
+            "Mein fachlicher Schwerpunkt liegt auf …",
+            "Für diese Position bringe ich besonders … mit.",
         ],
         "meta_prompts": {
-            "plan": "Welches konkrete Beispiel werden Sie nennen?",
-            "monitor": "Verbinden Sie die Stärke mit der ausgeschriebenen Stelle.",
-            "reflect": "War Ihr Beispiel spezifisch genug? Klang es authentisch?"
-        }
+            "plan": (
+                "Überlegen Sie vor dem Sprechen: "
+                "1) Kurzprofil, 2) 2–3 relevante Stationen, "
+                "3) aktueller Stand, 4) warum diese Rolle."
+            ),
+            "monitor": "Achten Sie auf klare Übergänge zwischen den Stationen.",
+            "reflect": "Ist klar geworden, wer Sie sind und warum Sie zu dieser Stelle passen?",
+        },
     },
-    
-    "explain_technical": {
-        "id": "explain_technical",
-        "title": "Fachliches Konzept erklären",
-        "context": "Academic/Business",
-        "cefr_target": "C1",
-        "icon": "🎓",
+
+    "elevator_self_pitch": {
+        "id": "elevator_self_pitch",
+        "title": "Elevator Pitch: Ich als Profi",
+        "context": "Business",
+        "cefr_target": "B2-C1",
+        "icon": "🚀",
         "situation": (
-            "Ein:e Kolleg:in aus einer anderen Abteilung fragt Sie, "
-            "ob Sie ein Konzept aus Ihrem Fachgebiet kurz erklären können. "
-            "Die Person hat keinen fachlichen Hintergrund."
+            "Sie treffen auf einer Veranstaltung eine Person, die für Ihre Karriere wichtig "
+            "sein könnte. Sie haben ca. 45–60 Sekunden, um einen starken ersten Eindruck "
+            "zu machen."
         ),
         "task": (
-            "Erklären Sie ein Konzept aus Ihrem Berufs- oder Studienfeld "
-            "so, dass jemand ohne Vorwissen es verstehen kann. "
-            "Nutzen Sie ein Beispiel oder eine Analogie."
-        ),
-        "time_seconds": 120,
-        "evaluation_focus": ["verständlichkeit", "struktur", "adressatengerecht"],
-        "register": "neutral-erklärend",
-        "example_phrases": [
-            "Im Grunde kann man sich das so vorstellen wie...",
-            "Das bedeutet konkret, dass...",
-            "Ein einfaches Beispiel wäre..."
-        ],
-        "meta_prompts": {
-            "plan": "Welche Analogie oder welches Beispiel hilft beim Verstehen?",
-            "monitor": "Vermeiden Sie Fachbegriffe oder erklären Sie sie direkt.",
-            "reflect": "Hätte jemand ohne Vorwissen das verstanden?"
-        }
-    },
-    
-    "small_talk_network": {
-        "id": "small_talk_network",
-        "title": "Smalltalk beim Networking",
-        "context": "Social/Business",
-        "cefr_target": "B2",
-        "icon": "🤝",
-        "situation": (
-            "Sie sind auf einer Branchenveranstaltung und kommen mit einer "
-            "Person ins Gespräch, die Sie interessant finden. "
-            "Sie möchten einen guten ersten Eindruck machen."
-        ),
-        "task": (
-            "Führen Sie einen kurzen Smalltalk: "
-            "Stellen Sie sich vor, zeigen Sie Interesse an der anderen Person, "
-            "und finden Sie einen natürlichen Gesprächsabschluss."
+            "Stellen Sie sich in 45–60 Sekunden so vor, dass klar wird, "
+            "wer Sie beruflich sind, wofür Sie stehen und was andere mit Ihnen "
+            "in Verbindung bringen sollen."
         ),
         "time_seconds": 60,
-        "evaluation_focus": ["natürlichkeit", "gesprächsführung", "höflichkeit"],
-        "register": "informell-höflich",
+        "evaluation_focus": [
+            "Aufgabenerfüllung (Wer sind Sie, wofür stehen Sie?)",
+            "Struktur (starker Einstieg, klarer Abschluss)",
+            "Ton & Wirkung (Energie, Klarheit, Merkbarkeit)",
+            "Konkret statt vage (klare Beispiele statt Buzzwords)",
+        ],
+        "register": "professionell-kollegial",
         "example_phrases": [
-            "Wie hat Ihnen der Vortrag gefallen?",
-            "Das klingt wirklich interessant! Wie sind Sie dazu gekommen?",
-            "Es war sehr nett, Sie kennenzulernen. Vielleicht sieht man sich ja später noch."
+            "Ich arbeite an der Schnittstelle von …",
+            "Besonders spannend finde ich …",
+            "Wenn Sie mehr über … hören wollen, erzähle ich Ihnen gern mehr.",
         ],
         "meta_prompts": {
-            "plan": "Wie können Sie echtes Interesse zeigen, ohne aufdringlich zu wirken?",
-            "monitor": "Stellen Sie offene Fragen, nicht nur Ja/Nein-Fragen.",
-            "reflect": "Wirkte das Gespräch natürlich? War der Abschluss elegant?"
-        }
-    }
+            "plan": (
+                "Überlegen Sie: 1) Wer sind Sie beruflich? 2) Wofür stehen Sie? "
+                "3) Welches Beispiel passt dazu? 4) Wie schließen Sie ab?"
+            ),
+            "monitor": "Achten Sie darauf, nicht in einen kompletten Lebenslauf abzurutschen.",
+            "reflect": "Bleibt ein klarer Eindruck von Ihnen hängen?",
+        },
+    },
 }
 
 
@@ -179,4 +103,4 @@ def get_tasks_by_context(context: str) -> list[dict]:
 
 def get_task_choices() -> list[tuple[str, str]]:
     """Für Streamlit-Dropdown: Liste von (display_name, id)."""
-    return [(f"{t['icon']} {t['title']}", t['id']) for t in TASK_TEMPLATES.values()]
+    return [(f"{t['icon']} {t['title']}", t["id"]) for t in TASK_TEMPLATES.values()]
