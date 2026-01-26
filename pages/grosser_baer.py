@@ -114,43 +114,45 @@ st.markdown("""
         border-radius: 0 0 8px 8px;
         padding: 1rem;
     }
-
-
-    st.markdown("""
-<style>
-    /* ... bestehende Styles ... */
     
     /* =========================================================
-       EINGABEFELDER → HELL (Creme/Weiß)
+       EINGABEFELDER → CREME (nicht dunkelgrün!)
        ========================================================= */
     
-    /* Text Areas (mehrzeilig) */
+    /* Text Areas (mehrzeilig) - z.B. Lernziel, Reflexion */
     [data-testid="stTextArea"] textarea {
-        background-color: #FFFDF5 !important;  /* Creme */
-        border: 1px solid #A5D6A7 !important;  /* Hellgrüner Rand */
+        background-color: #FFFDF5 !important;
+        border: 1px solid #A5D6A7 !important;
+        border-radius: 8px;
     }
     
-    /* Text Inputs (einzeilig) */
+    /* Text Inputs (einzeilig) - z.B. Nutzercode */
     [data-testid="stTextInput"] input {
         background-color: #FFFDF5 !important;
         border: 1px solid #A5D6A7 !important;
+        border-radius: 8px;
     }
     
     /* Selectbox / Dropdown */
     [data-testid="stSelectbox"] > div > div {
         background-color: #FFFDF5 !important;
         border: 1px solid #A5D6A7 !important;
+        border-radius: 8px;
     }
     
-    /* Fokus-State (wenn aktiv) */
+    /* Fokus-State (wenn Feld aktiv) */
     [data-testid="stTextArea"] textarea:focus,
-    [data-testid="stTextInput"] input:focus {
+    [data-testid="stTextInput"] input:focus,
+    [data-testid="stSelectbox"] > div > div:focus-within {
         border-color: #4CAF50 !important;
-        box-shadow: 0 0 0 1px #4CAF50 !important;
+        box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2) !important;
     }
-</style>
-""", unsafe_allow_html=True)
-
+    
+    /* Placeholder-Text */
+    [data-testid="stTextArea"] textarea::placeholder,
+    [data-testid="stTextInput"] input::placeholder {
+        color: #9E9E9E !important;
+    }
     
     /* =========================================================
        METRICS
@@ -176,19 +178,6 @@ st.markdown("""
     
     hr {
         border-color: #C8E6C9 !important;
-    }
-    
-    /* =========================================================
-       SELECTBOX / DROPDOWN
-       ========================================================= */
-    
-    [data-testid="stSelectbox"] > div > div {
-        border-color: #A5D6A7 !important;
-    }
-    
-    [data-testid="stSelectbox"] > div > div:focus-within {
-        border-color: #4CAF50 !important;
-        box-shadow: 0 0 0 1px #4CAF50 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -644,7 +633,7 @@ with st.sidebar:
     st.page_link("pages/admin.py", label="🛠️ Admin Dashboard", icon="⚙️")
 
     st.markdown("---")
-    st.caption("Großer Bär v0.6 – Creme & Grün Theme")
+    st.caption("Großer Bär v0.6.1 – Eingabefelder Fix")
 
 
 # =============================================================================
@@ -1370,5 +1359,5 @@ elif st.session_state.phase == "feedback":
 
 st.markdown("---")
 st.caption(
-    "🐻 Großer Bär v0.6 – Creme & Grün Theme mit Kleiner Bär Textanalyse + OpenAI"
+    "🐻 Großer Bär v0.6.1 – Eingabefelder Fix mit Kleiner Bär Textanalyse + OpenAI"
 )
