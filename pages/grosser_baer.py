@@ -121,21 +121,21 @@ st.markdown("""
     
     /* Text Areas (mehrzeilig) - z.B. Lernziel, Reflexion */
     [data-testid="stTextArea"] textarea {
-        background-color: #FFFDF5 !important;
+        background-color: ##E8F5E9 !important;
         border: 1px solid #A5D6A7 !important;
         border-radius: 8px;
     }
     
     /* Text Inputs (einzeilig) - z.B. Nutzercode */
     [data-testid="stTextInput"] input {
-        background-color: #FFFDF5 !important;
+        background-color: ##E8F5E9 !important;
         border: 1px solid #A5D6A7 !important;
         border-radius: 8px;
     }
     
     /* Selectbox / Dropdown */
     [data-testid="stSelectbox"] > div > div {
-        background-color: #FFFDF5 !important;
+        background-color: ##E8F5E9 !important;
         border: 1px solid #A5D6A7 !important;
         border-radius: 8px;
     }
