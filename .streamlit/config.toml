@@ -1,0 +1,50 @@
+# =============================================================================
+# Streamlit Theme Config für Großer Bär
+# Ablegen unter: .streamlit/config.toml
+# =============================================================================
+
+[theme]
+# Hauptfarbe (Buttons, Links, Slider, Toggle)
+primaryColor = "#4CAF50"
+
+# Hintergrund der Hauptfläche
+backgroundColor = "#FFFFFF"
+
+# Hintergrund der Sidebar + Expander + Karten
+secondaryBackgroundColor = "#E8F5E9"
+
+# Textfarbe
+textColor = "#212121"
+
+# Schriftart
+font = "sans serif"
+
+
+# =============================================================================
+# Server-Einstellungen (optional)
+# =============================================================================
+
+[server]
+# Maximale Upload-Größe (MB) - wichtig für Audio
+maxUploadSize = 25
+
+# Browser automatisch öffnen (lokal)
+headless = true
+
+
+# =============================================================================
+# Browser-Einstellungen (optional)
+# =============================================================================
+
+[browser]
+# Infos in der Sidebar ausblenden
+gatherUsageStats = false
+
+
+# =============================================================================
+# Runner (optional)
+# =============================================================================
+
+[runner]
+# Bei Dateiänderung automatisch neu laden
+fastReruns = true
