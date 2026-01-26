@@ -78,6 +78,85 @@ st.set_page_config(
 )
 
 # =============================================================================
+# CUSTOM THEME CSS
+# =============================================================================
+
+st.markdown("""
+<style>
+    /* =========================================================
+       EXPANDER STYLING
+       ========================================================= */
+    
+    /* Expander-Header (der klickbare Teil) → BRAUN */
+    [data-testid="stExpander"] > details > summary {
+        background-color: #8B4513 !important;
+        color: #FFFDF5 !important;
+        border-radius: 8px 8px 0 0;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+    }
+    
+    /* Expander-Header Hover */
+    [data-testid="stExpander"] > details > summary:hover {
+        background-color: #A0522D !important;
+    }
+    
+    /* Expander-Pfeil (>) weiß machen */
+    [data-testid="stExpander"] > details > summary svg {
+        fill: #FFFDF5 !important;
+    }
+    
+    /* Expander-Inhalt (ausgeklappt) → HELLGRÜN */
+    [data-testid="stExpander"] > details > div {
+        background-color: #E8F5E9 !important;
+        border: 1px solid #C8E6C9;
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        padding: 1rem;
+    }
+    
+    /* =========================================================
+       METRICS
+       ========================================================= */
+    
+    [data-testid="stMetricValue"] {
+        color: #2E7D32 !important;
+    }
+    
+    /* =========================================================
+       TABS
+       ========================================================= */
+    
+    /* Aktiver Tab → Grün unterstrichen */
+    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+        border-bottom-color: #4CAF50 !important;
+        color: #2E7D32 !important;
+    }
+    
+    /* =========================================================
+       DIVIDER
+       ========================================================= */
+    
+    hr {
+        border-color: #C8E6C9 !important;
+    }
+    
+    /* =========================================================
+       SELECTBOX / DROPDOWN
+       ========================================================= */
+    
+    [data-testid="stSelectbox"] > div > div {
+        border-color: #A5D6A7 !important;
+    }
+    
+    [data-testid="stSelectbox"] > div > div:focus-within {
+        border-color: #4CAF50 !important;
+        box-shadow: 0 0 0 1px #4CAF50 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# =============================================================================
 # APP CONFIG INITIALISIERUNG (NEU)
 # =============================================================================
 
@@ -528,7 +607,7 @@ with st.sidebar:
     st.page_link("pages/admin.py", label="🛠️ Admin Dashboard", icon="⚙️")
 
     st.markdown("---")
-    st.caption("Großer Bär v0.5 – mit Admin-Dashboard")
+    st.caption("Großer Bär v0.6 – Creme & Grün Theme")
 
 
 # =============================================================================
@@ -712,8 +791,8 @@ elif st.session_state.phase == "record":
 
             audio_bytes = audio_recorder(
                 text="🎙️ Klicken zum Aufnehmen",
-                recording_color="#e74c3c",
-                neutral_color="#3498db",
+                recording_color="#C62828",   # Dunkelrot (Aufnahme = "Achtung!")
+                neutral_color="#4CAF50",     # Grün (bereit) – passt zum Theme
                 icon_size="2x",
                 pause_threshold=3.0,
                 sample_rate=16000,
@@ -1254,5 +1333,5 @@ elif st.session_state.phase == "feedback":
 
 st.markdown("---")
 st.caption(
-    "🐻 Großer Bär v0.5 – mit Admin-Dashboard, Pretest + Kleiner Bär Textanalyse + OpenAI"
+    "🐻 Großer Bär v0.6 – Creme & Grün Theme mit Kleiner Bär Textanalyse + OpenAI"
 )
