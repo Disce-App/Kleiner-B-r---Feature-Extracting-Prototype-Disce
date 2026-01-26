@@ -1,11 +1,12 @@
 """
 🛠️ Admin Dashboard für Großer Bär
-Debugging, Logging und Konfiguration.
+Debugging, Logging, Konfiguration und Screen Navigator.
 """
 
 import streamlit as st
 import json
 from datetime import datetime
+import uuid
 
 # Config laden
 from config.app_config import (
@@ -38,6 +39,317 @@ st.set_page_config(
 
 
 # =============================================================================
+# SCREEN NAVIGATOR: Mock-Daten für realistische Tests
+# =============================================================================
+
+MOCK_DATA = {
+    "transcript": """Guten Tag, mein Name ist Maria Schneider. Ich freue mich, heute die Möglichkeit zu haben, mich Ihnen vorzustellen.
+
+Ich habe meinen Master in Wirtschaftsinformatik an der TU München abgeschlossen und arbeite seit drei Jahren als Projektmanagerin bei einem mittelständischen IT-Unternehmen.
+
+In meiner aktuellen Position bin ich verantwortlich für die Koordination von agilen Entwicklungsteams und die Kommunikation mit unseren internationalen Kunden. Dabei habe ich besonders meine Fähigkeiten in der interkulturellen Zusammenarbeit und im Stakeholder-Management ausgebaut.
+
+Für diese Position bringe ich nicht nur meine technische Expertise mit, sondern auch meine Leidenschaft für innovative Lösungen und meine Erfahrung in der Führung von cross-funktionalen Teams.
+
+Ich freue mich auf Ihre Fragen.""",
+
+    "learner_goal": "Ich möchte meine Vorstellung klar strukturieren und professionell wirken.",
+    
+    "learner_context": "Ich habe nächste Woche ein echtes Bewerbungsgespräch bei einem großen Konzern.",
+    
+    "pretest_responses": {
+        "cefr_overall": {"value": "B2", "answered_at": "2026-01-23T14:30:00"},
+        "cefr_speaking": {"value": "B2", "answered_at": "2026-01-23T14:30:15"},
+        "has_official_cert": {"value": True, "answered_at": "2026-01-23T14:30:20"},
+        "official_cert_type": {"value": "Goethe B2 (bestanden)", "answered_at": "2026-01-23T14:30:25"},
+        "native_language": {"value": "Spanisch", "answered_at": "2026-01-23T14:29:00"},
+        "other_languages": {"value": "Englisch (C1), Französisch (A2)", "answered_at": "2026-01-23T14:29:10"},
+        "learning_duration_months": {"value": 36, "answered_at": "2026-01-23T14:29:30"},
+        "learning_context": {"value": ["university", "work", "living_dach"], "answered_at": "2026-01-23T14:29:45"},
+        "masq_scores": {
+            "factors": {
+                "PE": {"mean": 4.0, "sum": 8, "items": 2},
+                "PS": {"mean": 3.7, "sum": 11, "items": 3},
+                "PK": {"mean": 3.3, "sum": 10, "items": 3},
+                "DA": {"mean": 3.5, "sum": 7, "items": 2},
+                "MT": {"mean": 2.5, "sum": 5, "items": 2}
+            },
+            "total": 31,
+            "level": "medium",
+            "level_label": "Mittlere metakognitive Awareness"
+        }
+    },
+    
+    "kleiner_baer_result": {
+        "metrics_summary": {
+            "word_count": 142,
+            "sentence_count": 8,
+            "avg_sentence_length": 17.75,
+            "type_token_ratio": 0.72,
+            "lexical_density": 0.58,
+            "filler_count": 0,
+            "filler_ratio": 0.0,
+            "connector_count": 5,
+            "modal_verb_count": 2,
+            "subjunctive_count": 0,
+            "formal_markers": ["freue mich", "Möglichkeit", "verantwortlich", "Expertise"],
+            "informal_markers": []
+        },
+        "cefr": {
+            "label": "B2",
+            "score": 0.72,
+            "confidence": 0.81,
+            "indicators": {
+                "vocabulary": "B2",
+                "syntax": "B2",
+                "coherence": "B2"
+            }
+        },
+        "disce_metrics": {
+            "level_match": 0.85,
+            "prosody_intelligibility": 0.78,
+            "sentence_cohesion": 0.82,
+            "task_exam_fit": 0.90,
+            "goal_progress": 0.75
+        },
+        "hotspots": [
+            {
+                "type": "strength",
+                "text": "klare Struktur",
+                "severity": "positive",
+                "suggestion": "Gute chronologische Gliederung: Ausbildung → Erfahrung → Stärken"
+            },
+            {
+                "type": "register_match",
+                "text": "formell-professionell",
+                "severity": "positive",
+                "suggestion": "Angemessenes Register für Bewerbungsgespräch"
+            }
+        ],
+        "register_analysis": {
+            "target": "formell-professionell",
+            "detected": "formell-professionell",
+            "match_score": 0.90,
+            "formal_features": 4,
+            "informal_features": 0
+        }
+    },
+    
+    "feedback_text": """## 🎯 Aufgabenerfüllung
+
+Sie haben die Aufgabe gut erfüllt: Ihr Werdegang ist klar nachvollziehbar, und Sie haben einen Bogen zur angestrebten Position geschlagen. Besonders stark: Die Verbindung zwischen Ihrer Erfahrung und den Anforderungen der neuen Rolle.
+
+## 🧱 Struktur & roter Faden
+
+Ihre Präsentation folgt einer klaren Chronologie (Ausbildung → aktuelle Position → Stärken → Abschluss). Der rote Faden ist durchgehend erkennbar. 
+
+**Tipp:** Der Einstieg könnte noch prägnanter sein – statt der Floskel "Ich freue mich..." könnten Sie direkt mit Ihrem Kurzprofil starten.
+
+## 🎭 Ton & Wirkung
+
+Der Ton ist angemessen formell-professionell. Sie klingen kompetent und selbstsicher. Die Formulierung "Leidenschaft für innovative Lösungen" wirkt authentisch.
+
+## 💬 Sprache im Detail
+
+- **Zeitformen:** Korrekt eingesetzt (Perfekt für Vergangenes, Präsens für Aktuelles)
+- **Wortschatz:** Guter Einsatz von Fachbegriffen (Stakeholder-Management, cross-funktional)
+- **Satzbau:** Variiert und angemessen komplex
+
+## 📌 Fokus fürs nächste Mal
+
+**Einstieg schärfen:** Probieren Sie einen direkteren Einstieg wie: "Ich bin Projektmanagerin mit Schwerpunkt agile Methoden und bringe drei Jahre Erfahrung in der IT-Branche mit."
+"""
+}
+
+
+# Screen-Definitionen mit allen nötigen States
+SCREEN_DEFINITIONS = {
+    "login": {
+        "name": "🔐 Login",
+        "description": "Nutzercode-Eingabe in der Sidebar",
+        "category": "Auth",
+        "states": {
+            "user_code_confirmed": False,
+            "user_code": "",
+        }
+    },
+    "pretest_cefr": {
+        "name": "📋 Pretest: CEFR",
+        "description": "CEFR-Selbsteinschätzung (Modul 0)",
+        "category": "Pretest",
+        "states": {
+            "user_code_confirmed": True,
+            "user_code": "TEST_NAV",
+            "pretest_completed": False,
+            "pretest_current_module": 0,
+            "pretest_responses": {},
+        }
+    },
+    "pretest_masq": {
+        "name": "📋 Pretest: MASQ",
+        "description": "MASQ-Fragebogen (Modul 1)",
+        "category": "Pretest",
+        "states": {
+            "user_code_confirmed": True,
+            "user_code": "TEST_NAV",
+            "pretest_completed": False,
+            "pretest_current_module": 1,
+            "pretest_responses": {
+                "cefr_overall": {"value": "B2", "answered_at": "2026-01-23T14:30:00"},
+                "cefr_speaking": {"value": "B2", "answered_at": "2026-01-23T14:30:15"},
+                "has_official_cert": {"value": False, "answered_at": "2026-01-23T14:30:20"},
+                "learning_duration_months": {"value": 24, "answered_at": "2026-01-23T14:29:30"},
+                "learning_context": {"value": ["university", "self_study"], "answered_at": "2026-01-23T14:29:45"},
+                "native_language": {"value": "Englisch", "answered_at": "2026-01-23T14:29:00"},
+            },
+        }
+    },
+    "level_recheck": {
+        "name": "🔄 Level-Recheck",
+        "description": "Niveau-Nachfrage (alle 5 Sessions)",
+        "category": "Pretest",
+        "states": {
+            "user_code_confirmed": True,
+            "user_code": "TEST_NAV",
+            "pretest_completed": True,
+            "pretest_show_recheck": True,
+            "session_count": 5,
+            "phase": "select",
+        }
+    },
+    "phase_select": {
+        "name": "1️⃣ Task-Auswahl",
+        "description": "Aufgabe wählen + Lernziel setzen",
+        "category": "Coach-Loop",
+        "states": {
+            "user_code_confirmed": True,
+            "user_code": "TEST_NAV",
+            "pretest_completed": True,
+            "pretest_show_recheck": False,
+            "phase": "select",
+            "selected_task_id": None,
+        }
+    },
+    "phase_record": {
+        "name": "2️⃣ Aufnahme",
+        "description": "Mock-Texteingabe / Audio-Aufnahme",
+        "category": "Coach-Loop",
+        "states": {
+            "user_code_confirmed": True,
+            "user_code": "TEST_NAV",
+            "pretest_completed": True,
+            "phase": "record",
+            "selected_task_id": "cv_self_presentation",
+            "recording_start": None,  # Wird dynamisch gesetzt
+        }
+    },
+    "phase_feedback": {
+        "name": "3️⃣ Feedback",
+        "description": "Feedback-Anzeige mit allen Tabs",
+        "category": "Coach-Loop",
+        "requires_mock_data": True,
+        "states": {
+            "user_code_confirmed": True,
+            "user_code": "TEST_NAV",
+            "pretest_completed": True,
+            "phase": "feedback",
+            "selected_task_id": "cv_self_presentation",
+        }
+    },
+}
+
+
+def apply_screen_state(screen_id: str, use_mock_data: bool = True):
+    """Setzt alle States für einen bestimmten Screen."""
+    
+    if screen_id not in SCREEN_DEFINITIONS:
+        return False, f"Screen '{screen_id}' nicht gefunden"
+    
+    screen = SCREEN_DEFINITIONS[screen_id]
+    
+    # States setzen
+    for key, value in screen["states"].items():
+        if key == "recording_start" and value is None:
+            st.session_state[key] = datetime.now()
+        else:
+            st.session_state[key] = value
+    
+    # Mock-Daten laden wenn nötig
+    if use_mock_data and screen.get("requires_mock_data"):
+        # Pretest-Daten
+        if not st.session_state.get("pretest_responses"):
+            st.session_state.pretest_responses = MOCK_DATA["pretest_responses"].copy()
+        
+        # Session-Daten
+        st.session_state.session_id = str(uuid.uuid4())
+        st.session_state.learner_goal = MOCK_DATA["learner_goal"]
+        st.session_state.learner_context = MOCK_DATA["learner_context"]
+        st.session_state.transcript = MOCK_DATA["transcript"]
+        st.session_state.transcript_text = MOCK_DATA["transcript"]
+        st.session_state.recording_start = datetime.now()
+        
+        # Analyse-Daten
+        st.session_state.kleiner_baer_result = MOCK_DATA["kleiner_baer_result"].copy()
+        
+        # Coach-Input bauen
+        st.session_state.coach_input = {
+            "user": {
+                "code": st.session_state.get("user_code", "TEST_NAV"),
+                "is_anonymous": False,
+            },
+            "pretest": {
+                "self_assessment": {
+                    "cefr_overall": "B2",
+                    "cefr_speaking": "B2",
+                },
+                "masq": MOCK_DATA["pretest_responses"]["masq_scores"],
+            },
+            "task_metadata": {
+                "task_id": "cv_self_presentation",
+                "situation": "Sie sind in einem Bewerbungsgespräch.",
+                "task": "Stellen Sie sich und Ihren beruflichen Werdegang vor.",
+                "target_level": "B2-C1",
+                "target_register": "formell-professionell",
+                "time_limit_seconds": 90,
+            },
+            "session_metadata": {
+                "session_id": st.session_state.session_id,
+                "mode": "mock_speaking",
+                "duration_seconds": 85,
+            },
+            "learner_planning": {
+                "goal": MOCK_DATA["learner_goal"],
+                "context": MOCK_DATA["learner_context"],
+            },
+            "transcript": MOCK_DATA["transcript"],
+            "analysis": {
+                "layer1_deterministic": MOCK_DATA["kleiner_baer_result"]["metrics_summary"],
+                "cefr": MOCK_DATA["kleiner_baer_result"]["cefr"],
+                "home_kpis": MOCK_DATA["kleiner_baer_result"]["disce_metrics"],
+                "hotspots": MOCK_DATA["kleiner_baer_result"]["hotspots"],
+            },
+            "reflection": {"text": "", "submitted_at": None},
+        }
+        
+        # Mock-Feedback erstellen
+        class MockFeedback:
+            def __init__(self):
+                self.text = MOCK_DATA["feedback_text"]
+                self.cefr_label = "B2"
+                self.cefr_score = 0.72
+                self.is_mock = True
+        
+        st.session_state.feedback_result = MockFeedback()
+    
+    # Pretest-Daten für alle Screens außer Login
+    if use_mock_data and screen_id not in ["login", "pretest_cefr"]:
+        if not st.session_state.get("pretest_responses"):
+            st.session_state.pretest_responses = MOCK_DATA["pretest_responses"].copy()
+    
+    return True, f"Screen '{screen['name']}' geladen"
+
+
+# =============================================================================
 # JSON SCHEMAS (Erwartete Strukturen mit Beispielwerten)
 # =============================================================================
 
@@ -60,25 +372,13 @@ JSON_SCHEMAS = {
         "version": "1.0",
         "modules": [
             {
-                "id": "demographics",
-                "title": "Über dich",
-                "questions": [
-                    {
-                        "id": "native_language",
-                        "type": "text",
-                        "label": "Was ist deine Muttersprache?",
-                        "required": True
-                    }
-                ]
-            },
-            {
-                "id": "cefr_self",
-                "title": "Selbsteinschätzung",
+                "id": "cefr_self_assessment",
+                "title": "CEFR-Selbsteinschätzung",
                 "questions": ["..."]
             },
             {
-                "id": "masq",
-                "title": "Lernstrategien (MASQ)",
+                "id": "masq_short",
+                "title": "MASQ – Metakognitive Awareness",
                 "scoring": {
                     "factors": ["PE", "PS", "PK", "DA", "MT"],
                     "scale": "1-5"
@@ -91,78 +391,9 @@ JSON_SCHEMAS = {
     # =========================================================================
     # PRETEST
     # =========================================================================
-    "pretest_responses": {
-        "cefr_overall": {
-            "value": "B2",
-            "answered_at": "2026-01-23T14:30:00"
-        },
-        "cefr_speaking": {
-            "value": "B1",
-            "answered_at": "2026-01-23T14:30:15"
-        },
-        "native_language": {
-            "value": "Englisch",
-            "answered_at": "2026-01-23T14:29:00"
-        },
-        "learning_duration": {
-            "value": 24,
-            "answered_at": "2026-01-23T14:29:30"
-        },
-        "learning_context": {
-            "value": "Universität + Selbststudium",
-            "answered_at": "2026-01-23T14:29:45"
-        },
-        "masq_scores": {
-            "factors": {
-                "PE": {"mean": 3.8, "sum": 19, "items": 5},
-                "PS": {"mean": 3.5, "sum": 14, "items": 4},
-                "PK": {"mean": 3.2, "sum": 16, "items": 5},
-                "DA": {"mean": 3.6, "sum": 18, "items": 5},
-                "MT": {"mean": 2.8, "sum": 14, "items": 5}
-            },
-            "total": 81,
-            "level": "medium",
-            "level_label": "Durchschnittliche metakognitive Bewusstheit"
-        }
-    },
+    "pretest_responses": MOCK_DATA["pretest_responses"],
     
-    "masq_scores": {
-        "factors": {
-            "PE": {
-                "mean": 3.8,
-                "sum": 19,
-                "items": 5,
-                "_description": "Planning & Evaluation – Planung und Selbstbewertung"
-            },
-            "PS": {
-                "mean": 3.5,
-                "sum": 14,
-                "items": 4,
-                "_description": "Problem-Solving – Problemlösestrategien"
-            },
-            "PK": {
-                "mean": 3.2,
-                "sum": 16,
-                "items": 5,
-                "_description": "Person Knowledge – Wissen über eigenes Lernen"
-            },
-            "DA": {
-                "mean": 3.6,
-                "sum": 18,
-                "items": 5,
-                "_description": "Directed Attention – Fokussierte Aufmerksamkeit"
-            },
-            "MT": {
-                "mean": 2.8,
-                "sum": 14,
-                "items": 5,
-                "_description": "Mental Translation – Mentale Übersetzung (niedrig = besser)"
-            }
-        },
-        "total": 81,
-        "level": "medium",
-        "level_label": "Durchschnittliche metakognitive Bewusstheit"
-    },
+    "masq_scores": MOCK_DATA["pretest_responses"]["masq_scores"],
     
     # =========================================================================
     # SESSION
@@ -174,86 +405,48 @@ JSON_SCHEMAS = {
         },
         "pretest": {
             "completed": True,
-            "cefr_self_speaking": "B1",
+            "cefr_self_speaking": "B2",
             "masq_level": "medium",
-            "masq_factors": {
-                "PE": 3.8,
-                "PS": 3.5,
-                "PK": 3.2,
-                "DA": 3.6,
-                "MT": 2.8
-            }
         },
         "task_metadata": {
-            "task_id": "meeting_update",
-            "situation": "Du bist in einem Team-Meeting und sollst ein kurzes Projekt-Update geben.",
-            "task": "Fasse den aktuellen Stand zusammen und benenne die nächsten Schritte.",
-            "target_level": "B2",
-            "target_register": "beruflich-formell",
+            "task_id": "cv_self_presentation",
+            "situation": "Sie sind in einem Bewerbungsgespräch.",
+            "task": "Stellen Sie sich und Ihren beruflichen Werdegang vor.",
+            "target_level": "B2-C1",
+            "target_register": "formell-professionell",
             "time_limit_seconds": 90
         },
         "session_metadata": {
             "session_id": "550e8400-e29b-41d4-a716-446655440000",
             "session_number": 3,
             "mode": "speaking",
-            "started_at": "2026-01-23T15:00:00",
-            "ended_at": "2026-01-23T15:01:45",
-            "duration_seconds": 105
+            "duration_seconds": 85
         },
         "learner_planning": {
-            "goal": "Ich möchte flüssiger sprechen ohne lange Pausen",
-            "context": "Ich habe nächste Woche ein echtes Meeting mit meinem Chef",
-            "submitted_at": "2026-01-23T15:00:00"
+            "goal": "Ich möchte meine Vorstellung klar strukturieren",
+            "context": "Bewerbungsgespräch nächste Woche"
         },
-        "transcript": "Guten Tag, ich möchte kurz den aktuellen Projektstand zusammenfassen. Wir haben in der letzten Woche gute Fortschritte gemacht. Die wichtigsten Meilensteine wurden erreicht. Als nächstes werden wir uns auf die Testphase konzentrieren.",
+        "transcript": "[Transkript der Aufnahme]",
         "analysis": {
-            "layer1_deterministic": {
-                "word_count": 35,
-                "sentence_count": 4,
-                "avg_sentence_length": 8.75,
-                "filler_count": 0,
-                "vocabulary_diversity": 0.85
-            },
-            "layer2_azure": None,
-            "cefr": {
-                "label": "B1",
-                "score": 0.65,
-                "confidence": 0.78
-            },
-            "home_kpis": {
-                "level_match": 0.70,
-                "prosody_intelligibility": 0.80,
-                "sentence_cohesion": 0.75,
-                "task_exam_fit": 0.85,
-                "goal_progress": 0.60
-            },
-            "hotspots": [
-                {"type": "filler", "text": "ähm", "position": 12, "severity": "low"},
-                {"type": "pause", "duration_ms": 1200, "position": 25, "severity": "medium"}
-            ]
+            "layer1_deterministic": {},
+            "cefr": {"label": "B2", "score": 0.72},
+            "home_kpis": {},
+            "hotspots": []
         },
         "reflection": {
-            "text": "Ich war am Anfang nervös, aber dann wurde es besser. Nächstes Mal möchte ich weniger Pausen machen.",
-            "submitted_at": "2026-01-23T15:02:30"
+            "text": "",
+            "submitted_at": None
         }
     },
     
     "current_task": {
-        "id": "meeting_update",
-        "situation": "Du bist in einem Team-Meeting und sollst ein kurzes Projekt-Update geben.",
-        "task": "Fasse den aktuellen Stand zusammen und benenne die nächsten Schritte.",
-        "level": "B2",
-        "register": "beruflich-formell",
+        "id": "cv_self_presentation",
+        "title": "Lebenslauf vorstellen im Bewerbungsgespräch",
+        "situation": "Sie sind in einem Bewerbungsgespräch.",
+        "task": "Stellen Sie sich und Ihren beruflichen Werdegang vor.",
         "time_seconds": 90,
-        "example_phrases": [
-            "Ich möchte kurz zusammenfassen...",
-            "Der aktuelle Stand ist...",
-            "Als nächstes werden wir..."
-        ],
-        "meta_prompts": {
-            "plan": "Überlege dir eine klare Struktur: Rückblick → Aktueller Stand → Ausblick",
-            "reflect": "War deine Struktur klar? Hast du alle drei Teile abgedeckt?"
-        }
+        "register": "formell-professionell",
+        "cefr_target": "B2-C1",
     },
     
     "session_metadata": {
@@ -261,171 +454,18 @@ JSON_SCHEMAS = {
         "user_code": "ABC123",
         "session_count": 3,
         "phase": "feedback",
-        "recording_start": "2026-01-23T15:00:00",
-        "learner_goal": "Ich möchte flüssiger sprechen",
-        "learner_context": "Meeting mit Chef nächste Woche",
-        "reflection_text": "Es lief besser als erwartet",
-        "transcript": "Guten Tag, ich möchte kurz..."
     },
     
     # =========================================================================
     # ANALYSE (Kleiner Bär Output)
     # =========================================================================
-    "kleiner_baer_result": {
-        "metrics_summary": {
-            "word_count": 35,
-            "sentence_count": 4,
-            "avg_sentence_length": 8.75,
-            "type_token_ratio": 0.85,
-            "lexical_density": 0.52,
-            "filler_count": 2,
-            "filler_ratio": 0.057,
-            "connector_count": 3,
-            "modal_verb_count": 1,
-            "subjunctive_count": 0,
-            "formal_markers": ["möchte", "zusammenfassen"],
-            "informal_markers": []
-        },
-        "cefr": {
-            "label": "B1",
-            "score": 0.65,
-            "confidence": 0.78,
-            "indicators": {
-                "vocabulary": "B1",
-                "syntax": "B1-B2",
-                "coherence": "B1"
-            }
-        },
-        "disce_metrics": {
-            "level_match": 0.70,
-            "prosody_intelligibility": 0.80,
-            "sentence_cohesion": 0.75,
-            "task_exam_fit": 0.85,
-            "goal_progress": 0.60
-        },
-        "hotspots": [
-            {
-                "type": "filler",
-                "text": "ähm",
-                "position": 12,
-                "context": "...und ähm wir haben...",
-                "severity": "low",
-                "suggestion": "Pause statt Füllwort"
-            },
-            {
-                "type": "pause",
-                "duration_ms": 1200,
-                "position": 25,
-                "severity": "medium",
-                "suggestion": "Kürzere Denkpausen durch bessere Vorbereitung"
-            },
-            {
-                "type": "register_mismatch",
-                "text": "halt",
-                "expected": "beruflich-formell",
-                "found": "umgangssprachlich",
-                "severity": "medium"
-            }
-        ],
-        "register_analysis": {
-            "target": "beruflich-formell",
-            "detected": "neutral-formell",
-            "match_score": 0.70,
-            "formal_features": 3,
-            "informal_features": 1
-        }
-    },
+    "kleiner_baer_result": MOCK_DATA["kleiner_baer_result"],
     
-    "cefr_estimation": {
-        "label": "B1",
-        "score": 0.65,
-        "confidence": 0.78,
-        "method": "rule_based_v1",
-        "indicators": {
-            "vocabulary_range": "B1",
-            "grammatical_accuracy": "B1",
-            "syntactic_complexity": "B1-B2",
-            "coherence_cohesion": "B1",
-            "task_achievement": "B2"
-        },
-        "comparison_to_self_assessment": {
-            "self_reported": "B1",
-            "estimated": "B1",
-            "delta": 0
-        }
-    },
+    "cefr_estimation": MOCK_DATA["kleiner_baer_result"]["cefr"],
     
-    "disce_metrics": {
-        "level_match": {
-            "value": 0.70,
-            "description": "Wie gut passt das Niveau zur Zielaufgabe?",
-            "target": "B2",
-            "estimated": "B1"
-        },
-        "prosody_intelligibility": {
-            "value": 0.80,
-            "description": "Verständlichkeit und Sprechfluss",
-            "components": {
-                "speech_rate_wpm": 125,
-                "pause_ratio": 0.15,
-                "filler_ratio": 0.057
-            }
-        },
-        "sentence_cohesion": {
-            "value": 0.75,
-            "description": "Zusammenhang zwischen Sätzen",
-            "connectors_used": 3,
-            "logical_flow": "adequate"
-        },
-        "task_exam_fit": {
-            "value": 0.85,
-            "description": "Erfüllung der Aufgabenstellung",
-            "task_elements_covered": ["summary", "next_steps"],
-            "missing": []
-        },
-        "goal_progress": {
-            "value": 0.60,
-            "description": "Fortschritt bezogen auf Lernziel",
-            "learner_goal": "flüssiger sprechen",
-            "evidence": "noch einige Pausen"
-        }
-    },
+    "disce_metrics": MOCK_DATA["kleiner_baer_result"]["disce_metrics"],
     
-    "hotspots": [
-        {
-            "id": 1,
-            "type": "filler",
-            "text": "ähm",
-            "position": {"start": 45, "end": 48},
-            "context": "...Projektstand ähm zusammenfassen...",
-            "severity": "low",
-            "category": "fluency",
-            "suggestion": "Kurze Pause statt Füllwort",
-            "learnable": True
-        },
-        {
-            "id": 2,
-            "type": "pause",
-            "duration_ms": 1200,
-            "position": {"start": 120, "end": 120},
-            "context": "...Meilensteine wurden [1.2s] erreicht...",
-            "severity": "medium",
-            "category": "fluency",
-            "suggestion": "Satz im Kopf vorbereiten vor dem Sprechen"
-        },
-        {
-            "id": 3,
-            "type": "register_mismatch",
-            "text": "halt",
-            "position": {"start": 85, "end": 89},
-            "context": "...wir haben halt...",
-            "severity": "medium",
-            "category": "register",
-            "expected_register": "beruflich-formell",
-            "found_register": "umgangssprachlich",
-            "suggestion": "→ 'also' oder 'demnach' im beruflichen Kontext"
-        }
-    ],
+    "hotspots": MOCK_DATA["kleiner_baer_result"]["hotspots"],
     
     # =========================================================================
     # LOGS
@@ -433,53 +473,29 @@ JSON_SCHEMAS = {
     "payload_log_entry": {
         "timestamp": "2026-01-23T15:03:00",
         "endpoint": "make_webhook",
-        "payload": {
-            "session_id": "550e8400-...",
-            "user_code": "ABC123",
-            "transcript": "...",
-            "cefr_label": "B1"
-        },
-        "response": {
-            "status_code": 200,
-            "message": "accepted"
-        }
+        "payload": {"session_id": "...", "user_code": "ABC123"},
+        "response": {"status_code": 200}
     },
     
     "llm_call_log_entry": {
         "timestamp": "2026-01-23T15:02:00",
         "prompt_type": "gpt_coach",
         "model": "gpt-4o-mini",
-        "input": {
-            "coach_input": "{ ... siehe coach_input Schema ... }"
-        },
-        "output": "## Feedback zu deiner Übung\n\n**Was gut war:**\n- Klare Struktur...",
-        "tokens_used": {
-            "prompt": 850,
-            "completion": 320,
-            "total": 1170
-        },
-        "duration_ms": 2340
+        "input": {"coach_input": "..."},
+        "output": "## Feedback...",
+        "tokens_used": {"total": 1170}
     },
     
     "error_log_entry": {
         "timestamp": "2026-01-23T15:02:15",
         "error_type": "whisper",
-        "message": "Audio file too short",
-        "details": {
-            "audio_length_ms": 500,
-            "min_required_ms": 1000
-        },
-        "stack_trace": "..."
+        "message": "Audio file too short"
     },
     
     "event_log_entry": {
         "timestamp": "2026-01-23T14:55:00",
         "event_type": "auth",
-        "message": "User eingeloggt",
-        "details": {
-            "user_code": "ABC123",
-            "method": "manual"
-        }
+        "message": "User eingeloggt"
     }
 }
 
@@ -599,7 +615,7 @@ def get_data_hint(schema_key: str) -> str:
         "errors": "→ Bei Fehlern in der App",
         "events": "→ Bei Login, Session-Start, etc.",
     }
-    return hints.get(schema_key, "→ Nutze den Mock-Generator unter 'Actions'")
+    return hints.get(schema_key, "→ Nutze den Screen Navigator oder Mock-Generatoren")
 
 
 def get_all_jsons() -> dict:
@@ -770,10 +786,11 @@ def render_admin_dashboard():
     init_app_config()
     
     st.title("🛠️ Admin Dashboard")
-    st.caption("Debugging, Logging und Konfiguration für Großer Bär")
+    st.caption("Debugging, Logging, Konfiguration und Screen Navigator für Großer Bär")
     
-    # Tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    # Tabs – NEU: Screen Navigator als erster Tab
+    tab_nav, tab_json, tab_settings, tab_state, tab_logs, tab_actions = st.tabs([
+        "🧭 Screen Navigator",
         "📋 JSON Viewer",
         "⚙️ Einstellungen",
         "📊 Session State",
@@ -782,9 +799,106 @@ def render_admin_dashboard():
     ])
     
     # =========================================================================
-    # TAB 1: JSON VIEWER (NEU: Hauptfokus)
+    # TAB 0: SCREEN NAVIGATOR (NEU)
     # =========================================================================
-    with tab1:
+    with tab_nav:
+        st.header("🧭 Screen Navigator")
+        st.markdown(
+            "Springe direkt zu jedem Screen der App – ideal für UX-Testing. "
+            "Mock-Daten werden automatisch geladen."
+        )
+        
+        # Aktuellen Status anzeigen
+        col_status1, col_status2, col_status3, col_status4 = st.columns(4)
+        with col_status1:
+            st.metric("Phase", st.session_state.get("phase", "–"))
+        with col_status2:
+            st.metric("User", st.session_state.get("user_code", "–") or "–")
+        with col_status3:
+            pretest_done = "✅" if st.session_state.get("pretest_completed") else "❌"
+            st.metric("Pretest", pretest_done)
+        with col_status4:
+            st.metric("Task", st.session_state.get("selected_task_id", "–") or "–")
+        
+        st.markdown("---")
+        
+        # Screens nach Kategorie gruppieren
+        categories = {}
+        for screen_id, screen in SCREEN_DEFINITIONS.items():
+            cat = screen.get("category", "Sonstige")
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append((screen_id, screen))
+        
+        # Screen-Buttons in Spalten nach Kategorie
+        for category, screens in categories.items():
+            st.subheader(f"{category}")
+            
+            cols = st.columns(len(screens))
+            for col, (screen_id, screen) in zip(cols, screens):
+                with col:
+                    # Button mit Description als Tooltip-artige Caption
+                    if st.button(
+                        screen["name"], 
+                        key=f"nav_{screen_id}",
+                        use_container_width=True,
+                        help=screen["description"]
+                    ):
+                        success, message = apply_screen_state(screen_id, use_mock_data=True)
+                        if success:
+                            st.success(message)
+                            st.markdown("👉 **Gehe jetzt zur Coach-App:**")
+                            st.page_link(
+                                "pages/grosser_baer.py", 
+                                label="🐻 Großer Bär öffnen", 
+                                icon="🐻"
+                            )
+                        else:
+                            st.error(message)
+                    st.caption(screen["description"])
+        
+        st.markdown("---")
+        
+        # Quick-Links
+        st.subheader("🔗 Quick Links")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.page_link("pages/grosser_baer.py", label="🐻 Zur Coach-App", icon="🐻")
+        with col2:
+            if st.button("🔄 Alle States zurücksetzen", use_container_width=True):
+                keys_to_keep = ["admin_authenticated", "app_config"]
+                keys_to_delete = [k for k in st.session_state.keys() if k not in keys_to_keep]
+                for key in keys_to_delete:
+                    del st.session_state[key]
+                st.success("States zurückgesetzt!")
+                st.rerun()
+        
+        # Hilfe-Text
+        with st.expander("ℹ️ Wie funktioniert der Screen Navigator?"):
+            st.markdown("""
+**So nutzt du den Screen Navigator:**
+
+1. **Klicke auf einen Screen-Button** – die nötigen Session-States werden automatisch gesetzt
+2. **Gehe zur Coach-App** – der entsprechende Screen wird angezeigt
+3. **Teste die UI** – prüfe Look & Feel, Texte, Interaktionen
+
+**Mock-Daten:**
+- Für den **Feedback-Screen** werden realistische Beispieldaten geladen:
+  - Transkript einer Bewerbungsvorstellung
+  - CEFR-Analyse (B2)
+  - MASQ-Scores
+  - Vollständiges Coach-Feedback
+
+**Kategorien:**
+- **Auth:** Login-Flow
+- **Pretest:** CEFR-Selbsteinschätzung, MASQ, Level-Recheck
+- **Coach-Loop:** Die 3 Hauptphasen (Auswahl → Aufnahme → Feedback)
+            """)
+    
+    # =========================================================================
+    # TAB 1: JSON VIEWER
+    # =========================================================================
+    with tab_json:
         st.header("📋 Alle JSONs")
         st.markdown(
             "Jedes JSON hat zwei Ansichten: "
@@ -803,7 +917,7 @@ def render_admin_dashboard():
         ])
         
         # -----------------------------------------------------------------
-        # SESSION & COACH (wichtigste JSONs zuerst)
+        # SESSION & COACH
         # -----------------------------------------------------------------
         with json_tabs[0]:
             st.subheader("🎯 Session & Coach-Input")
@@ -815,7 +929,7 @@ def render_admin_dashboard():
                 "coach_input",
                 "coach_input ⭐ (LLM-Input)",
                 f"{item['description']} | `{item['source']}`",
-                expanded=True  # Standardmäßig offen
+                expanded=True
             )
             
             item = all_jsons["session"]["current_task"]
@@ -835,7 +949,7 @@ def render_admin_dashboard():
             )
         
         # -----------------------------------------------------------------
-        # ANALYSE (Kleiner Bär)
+        # ANALYSE
         # -----------------------------------------------------------------
         with json_tabs[1]:
             st.subheader("🔬 Analyse-Daten (Kleiner Bär)")
@@ -943,7 +1057,6 @@ def render_admin_dashboard():
         col1, col2 = st.columns(2)
         
         with col1:
-            # Schema-Export
             schema_export = {
                 "exported_at": datetime.now().isoformat(),
                 "description": "JSON Schemas für Großer Bär",
@@ -958,7 +1071,6 @@ def render_admin_dashboard():
             )
         
         with col2:
-            # Live-Daten Export
             live_export = {
                 "exported_at": datetime.now().isoformat(),
                 "session_id": st.session_state.get("session_id"),
@@ -979,7 +1091,7 @@ def render_admin_dashboard():
     # =========================================================================
     # TAB 2: Einstellungen
     # =========================================================================
-    with tab2:
+    with tab_settings:
         st.header("⚙️ Feature Flags & Modi")
         
         col1, col2 = st.columns(2)
@@ -1047,7 +1159,7 @@ def render_admin_dashboard():
     # =========================================================================
     # TAB 3: Session State
     # =========================================================================
-    with tab3:
+    with tab_state:
         st.header("📊 Session State")
         
         col1, col2 = st.columns(2)
@@ -1082,7 +1194,7 @@ def render_admin_dashboard():
     # =========================================================================
     # TAB 4: Logs
     # =========================================================================
-    with tab4:
+    with tab_logs:
         st.header("📝 Logs")
         
         log_type = st.selectbox(
@@ -1110,7 +1222,7 @@ def render_admin_dashboard():
     # =========================================================================
     # TAB 5: Actions
     # =========================================================================
-    with tab5:
+    with tab_actions:
         st.header("🔧 Quick Actions")
         
         col1, col2 = st.columns(2)
@@ -1153,20 +1265,13 @@ def render_admin_dashboard():
             if st.button("📝 Mock-Pretest", use_container_width=True):
                 st.session_state.pretest_completed = True
                 st.session_state.pretest_completed_at = datetime.now().isoformat()
-                st.session_state.pretest_responses = JSON_SCHEMAS["pretest_responses"].copy()
+                st.session_state.pretest_responses = MOCK_DATA["pretest_responses"].copy()
                 st.success("Pretest generiert!")
                 st.rerun()
             
-            if st.button("🎯 Mock-Session", use_container_width=True):
-                import uuid
-                st.session_state.phase = "feedback"
-                st.session_state.session_id = str(uuid.uuid4())
-                st.session_state.selected_task_id = "meeting_update"
-                st.session_state.learner_goal = "Flüssiger sprechen"
-                st.session_state.transcript = "Guten Tag, ich möchte den Projektstand zusammenfassen..."
-                st.session_state.coach_input = JSON_SCHEMAS["coach_input"].copy()
-                st.session_state.kleiner_baer_result = JSON_SCHEMAS["kleiner_baer_result"].copy()
-                st.success("Session generiert!")
+            if st.button("🎯 Mock-Session (Feedback)", use_container_width=True):
+                success, message = apply_screen_state("phase_feedback", use_mock_data=True)
+                st.success(message)
                 st.rerun()
         
         st.markdown("---")
