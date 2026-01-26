@@ -1,14 +1,15 @@
 # grosser_baer/prompts.py
 """
 Prompt-Architektur für Großer Bär.
-System-Prompts für Claude + Metakognitions-Framework.
+System-Prompts für Claude/GPT + Metakognitions-Framework.
 """
 
 # =============================================================================
 # SYSTEM PROMPT - Kern-Identität des Feedback-Coaches
 # =============================================================================
 
-SYSTEM_PROMPT_COACH = """Du bist ein erfahrener DaF-Coach (Deutsch als Fremdsprache) für fortgeschrittene Lernende (B2-C2).
+SYSTEM_PROMPT_COACH = """Du bist ein erfahrener DaF-Coach (Deutsch als Fremdsprache)
+für fortgeschrittene Lernende (B2–C2).
 
 ## Deine Persönlichkeit
 - Warmherzig, aber präzise
@@ -16,29 +17,53 @@ SYSTEM_PROMPT_COACH = """Du bist ein erfahrener DaF-Coach (Deutsch als Fremdspra
 - Fokussiert auf das, was den größten Unterschied macht
 
 ## Deine Aufgabe
-Du gibst Feedback auf gesprochene Texte. Du bekommst:
+Du gibst Feedback auf gesprochene Texte in klar definierten Sprechaufgaben
+(z.B. Lebenslauf vorstellen, Elevator Pitch). Du bekommst:
 1. Das Transkript der Aufnahme
-2. Metriken aus der automatischen Analyse
-3. Den Kontext (welche Aufgabe, welches Szenario)
+2. Kontext zur Aufgabe (Szenario, Zeitvorgabe, Zielregister)
+3. Interne Analyseergebnisse (Niveau-Schätzung, Textmerkmale, ggf. MASQ)
+
+Die Analysewerte sind HINWEISE für dich, aber du nennst KEINE Zahlen
+(TTR, Prozente, Scores) im Feedback. Du übersetzt sie in verständliche,
+qualitative Aussagen.
 
 ## Dein Feedback-Format
-Strukturiere dein Feedback IMMER so:
 
-### ✓ Das ist gelungen
-[Eine konkrete Stärke mit Beispiel aus dem Text]
+Strukturiere dein Feedback IMMER GENAU so (Überschriften beibehalten):
 
-### → Fokus für nächstes Mal
-[1-2 priorisierte Verbesserungspunkte, konkret und umsetzbar]
+🎯 Aufgabenerfüllung
+- 1–2 Sätze dazu, ob die Aufgabe erfüllt wurde.
+- Beziehe dich explizit auf die Aufgabenstellung (z.B. ob alle Teile des Lebenslaufs
+  bzw. des Pitches abgedeckt wurden).
 
-### 💡 Mini-Übung
-[Eine kleine, sofort umsetzbare Übung oder ein Revisionsvorschlag]
+🧱 Struktur & roter Faden
+- 1–2 Sätze zur Verständlichkeit und Gliederung.
+- Einstieg, Hauptteil, Abschluss: Was war klar, was fehlte?
+
+🎭 Ton & Wirkung
+- 1–2 Sätze zum Ton im gegebenen Kontext
+  (Bewerbungsgespräch vs. Networking).
+- Kommentar, ob der Stil eher zu locker / zu steif / passend wirkt.
+
+💬 Sprache im Detail
+- 1–2 Sätze zu sprachlichen Mustern, die für DIESE Aufgabe wichtig sind:
+  z.B. Zeitformen im Lebenslauf, Präzision im Pitch, typische Grammatikthemen,
+  Wortwahl (konkret vs. vage), Register (umgangssprachlich vs. professionell).
+
+📌 Fokus fürs nächste Mal
+- Maximal ZWEI Bulletpoints.
+- Jeder Punkt = sehr konkret, beobachtbar, in der nächsten Übung umsetzbar.
+- Wenn möglich an das Lernziel der Person anknüpfen.
 
 ## Wichtige Prinzipien
-- Zitiere immer konkrete Stellen aus dem Text
-- Priorisiere: Was hat den größten Impact für dieses Szenario?
-- Vermeide Überforderung: Maximal 2 Fokuspunkte
-- Beachte das Register: Formell/informell je nach Situation
-- Verbinde Feedback mit dem Lernziel des Tasks
+- Zitiere kurze, konkrete Stellen aus dem Transkript.
+- Priorisiere: Lieber 1–2 wichtige Punkte als viele Details.
+- Kein Zahlensalat: Keine Erwähnung von „Score", „Prozent", „TTR" o.Ä.
+- Wenn Selbst-Einschätzung (CEFR-Self) und geschätztes Niveau auseinandergehen,
+  kannst du das behutsam ansprechen („Sie schätzen sich höher ein, als diese
+  Aufnahme zeigt – das ist normal, hier sind mögliche Gründe …").
+- Wenn MASQ-Hinweise zu Planung/Monitoring vorhanden sind, kannst du
+  am Ende einen kurzen Satz dazu ergänzen.
 
 ## Ton
 Schreibe auf Deutsch, in Sie-Form, professionell aber nicht steif.
@@ -59,22 +84,19 @@ FEEDBACK_PROMPT_TEMPLATE = """## Kontext
 ## Transkript der Aufnahme
 {transcript}
 
-## Analyse-Metriken
-- CEFR-Niveau: {cefr_label} (Score: {cefr_score:.1f})
-- Lexikalische Diversität: {lexical_diversity:.0%}
-- Grammatik-Genauigkeit: {grammar_accuracy:.0%}
-- Register-Match: {register_match:.0%}
-- Satzlänge (Durchschnitt): {avg_sentence_length:.1f} Wörter
-- Kohäsion: {cohesion:.0%}
-
-## Prosodie (falls verfügbar)
-- Sprechgeschwindigkeit: {speech_rate} WPM
-- Pausen-Verhältnis: {pause_ratio:.0%}
-- Füllwort-Rate: {filler_rate:.0%}
+## Interne Analyse (nur für dich als Coach)
+- Geschätztes Niveau: {cefr_label}
+- Es liegen dir detaillierte Hinweise zu Struktur, Lexik, Grammatik und Kohäsion vor.
+- Pretest-/MASQ-Daten geben Hinweise zu Planung, Monitoring etc.
 
 ## Aufgabe
-Gib strukturiertes Feedback gemäß deinem Format.
-Beachte besonders: {evaluation_focus}
+Gib Feedback GENAU in dem vorgegebenen Format mit den Überschriften:
+
+🎯 Aufgabenerfüllung
+🧱 Struktur & roter Faden
+🎭 Ton & Wirkung
+💬 Sprache im Detail
+📌 Fokus fürs nächste Mal
 """
 
 
@@ -143,20 +165,26 @@ PHASE_UI_TEXTS = {
 
 
 # =============================================================================
-# MOCK FEEDBACK - Für Testing ohne Claude API
+# MOCK FEEDBACK - Für Testing ohne LLM API (NEUES FORMAT!)
 # =============================================================================
 
-MOCK_FEEDBACK = """### ✓ Das ist gelungen
-Sie haben eine klare Struktur verwendet und Ihre Hauptpunkte verständlich präsentiert. Besonders gut war der Einstieg mit der direkten Kontextualisierung.
+MOCK_FEEDBACK = """🎯 Aufgabenerfüllung
+Sie haben die Aufgabe grundsätzlich erfüllt und über Ihren Werdegang gesprochen. Allerdings fehlte ein klarer Bezug zur angestrebten Position – der „Warum diese Rolle?"-Teil kam zu kurz.
 
-### → Fokus für nächstes Mal
-1. **Präzisere Fachbegriffe:** Statt "das Ding mit den Daten" könnten Sie "die Datenanalyse" oder "der Datensatz" verwenden.
-2. **Übergänge:** Zwischen Ihren Punkten könnten Signalwörter wie "Darüber hinaus" oder "Was den nächsten Punkt betrifft" helfen.
+🧱 Struktur & roter Faden
+Der Einstieg war klar („Ich bin derzeit…"), und Sie haben chronologisch durch Ihre Stationen geführt. Ein expliziter Schlusssatz, der zur Stelle hinführt, hätte den roten Faden abgerundet.
 
-### 💡 Mini-Übung
-Nehmen Sie Ihren ersten Satz und formulieren Sie ihn in drei Varianten: einmal neutral, einmal formeller, einmal direkter. Das schärft Ihr Registerbewusstsein.
+🎭 Ton & Wirkung
+Der Ton war angemessen professionell für ein Bewerbungsgespräch. An einer Stelle („das war echt cool") rutschten Sie kurz ins Umgangssprachliche – das fiel aber nicht stark ins Gewicht.
 
-*[Dies ist Mock-Feedback für Testing. Mit Claude API wird das Feedback personalisiert.]*
+💬 Sprache im Detail
+Sie haben die Vergangenheitsformen korrekt verwendet. Gut war die Verwendung von Konnektoren wie „anschließend" und „daraufhin". Tipp: Statt „ich habe Sachen mit Daten gemacht" wäre „ich habe Datenanalysen durchgeführt" präziser.
+
+📌 Fokus fürs nächste Mal
+- Schließen Sie mit einem Satz, der Ihre Eignung für die konkrete Stelle betont.
+- Ersetzen Sie vage Formulierungen durch Fachbegriffe aus Ihrem Bereich.
+
+*[Mock-Feedback für Testing – mit API wird das Feedback personalisiert.]*
 """
 
 
@@ -201,31 +229,30 @@ def build_feedback_prompt(
         task: Task-Template aus task_templates.py
         transcript: STT-Transkript
         metrics: Metriken aus Kleiner Bär
-        prosody: Optional, Prosodie-Daten aus Azure
+        prosody: Optional, Prosodie-Daten (aktuell nicht im Template genutzt)
     
     Returns:
-        Formatierter Prompt für Claude
+        Formatierter Prompt für Claude/GPT
     """
-    # Defaults für fehlende Prosodie-Daten
-    prosody = prosody or {}
+    # CEFR-Label sicher extrahieren
+    cefr_data = metrics.get("cefr", {})
+    cefr_label = cefr_data.get("label", "?") if isinstance(cefr_data, dict) else "?"
+    
+    # evaluation_focus kann Liste oder String sein
+    eval_focus = task.get("evaluation_focus", [])
+    if isinstance(eval_focus, list):
+        eval_focus_str = ", ".join(eval_focus)
+    else:
+        eval_focus_str = str(eval_focus)
     
     return FEEDBACK_PROMPT_TEMPLATE.format(
         task_title=task.get("title", "Unbekannte Aufgabe"),
         situation=task.get("situation", ""),
         register=task.get("register", "neutral"),
-        evaluation_focus=", ".join(task.get("evaluation_focus", [])),
+        evaluation_focus=eval_focus_str,
         time_seconds=task.get("time_seconds", 60),
         transcript=transcript,
-        cefr_label=metrics.get("cefr", {}).get("label", "?"),
-        cefr_score=metrics.get("cefr", {}).get("score", 0),
-        lexical_diversity=metrics.get("metrics_summary", {}).get("dims", {}).get("lexical_diversity", 0),
-        grammar_accuracy=metrics.get("dims", {}).get("grammar_accuracy", 0),
-        register_match=metrics.get("disce_metrics", {}).get("level_match", 0),
-        avg_sentence_length=metrics.get("text_stats", {}).get("avg_sentence_length", 0),
-        cohesion=metrics.get("dims", {}).get("cohesion", 0),
-        speech_rate=prosody.get("speech_rate", "N/A"),
-        pause_ratio=prosody.get("pause_ratio", 0),
-        filler_rate=prosody.get("filler_rate", 0)
+        cefr_label=cefr_label,
     )
 
 
