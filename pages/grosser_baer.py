@@ -114,6 +114,43 @@ st.markdown("""
         border-radius: 0 0 8px 8px;
         padding: 1rem;
     }
+
+
+    st.markdown("""
+<style>
+    /* ... bestehende Styles ... */
+    
+    /* =========================================================
+       EINGABEFELDER → HELL (Creme/Weiß)
+       ========================================================= */
+    
+    /* Text Areas (mehrzeilig) */
+    [data-testid="stTextArea"] textarea {
+        background-color: #FFFDF5 !important;  /* Creme */
+        border: 1px solid #A5D6A7 !important;  /* Hellgrüner Rand */
+    }
+    
+    /* Text Inputs (einzeilig) */
+    [data-testid="stTextInput"] input {
+        background-color: #FFFDF5 !important;
+        border: 1px solid #A5D6A7 !important;
+    }
+    
+    /* Selectbox / Dropdown */
+    [data-testid="stSelectbox"] > div > div {
+        background-color: #FFFDF5 !important;
+        border: 1px solid #A5D6A7 !important;
+    }
+    
+    /* Fokus-State (wenn aktiv) */
+    [data-testid="stTextArea"] textarea:focus,
+    [data-testid="stTextInput"] input:focus {
+        border-color: #4CAF50 !important;
+        box-shadow: 0 0 0 1px #4CAF50 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
     
     /* =========================================================
        METRICS
