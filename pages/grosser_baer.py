@@ -240,19 +240,6 @@ if "user_code" not in st.session_state:
 if "user_code_confirmed" not in st.session_state:
     st.session_state.user_code_confirmed = False
 
-# =============================================================================
-# CERVUS STUDY MODE (Session-as-Experiment) – State
-# =============================================================================
-
-if "study_mode" not in st.session_state:
-    st.session_state.study_mode = False
-
-if "study_code_status" not in st.session_state:
-    # 'none' | 'valid' | 'invalid'
-    st.session_state.study_code_status = "none"
-
-
-
 # Session-Speicherung
 if "session_saved" not in st.session_state:
     st.session_state.session_saved = False
@@ -350,11 +337,6 @@ def build_coach_input(
     now = datetime.now()
     recording_start = st.session_state.get("recording_start")
 
-
-    # Cervus Study Mode: Planung/Goal ist deaktiviert (Anti-Priming)
-    if st.session_state.get("study_mode", False):
-        learner_goal = ""
-        learner_context = ""
     # Pretest-Daten für Coach-Input holen
     pretest_data = get_pretest_data_for_coach_input()
 
@@ -611,79 +593,16 @@ with st.sidebar:
     # -------------------------------------------------------------------------
     # EINSTELLUNGEN (jetzt aus Config-System)
     # -------------------------------------------------------------------------
-
-    # -------------------------------------------------------------------------
-    # CERVUS: STUDY MODE ACCESS (global study code)
-    # -------------------------------------------------------------------------
-    with st.expander("🧪 Studie (optional)", expanded=False):
-        st.caption(
-            "Wenn du einen Studiencode hast, kannst du hier den Studienmodus aktivieren. "
-            "Bei einem falschen Code wirst du automatisch in den normalen Modus weitergeleitet."
-        )
-
-        entered_study_code = st.text_input(
-            "Studiencode:",
-            type="password",
-            placeholder="z.B. CERVUS…",
-            key="study_code_input",
-        )
-
-        col_study1, col_study2 = st.columns(2)
-
-        with col_study1:
-            if st.button("✅ Studienmodus aktivieren", use_container_width=True):
-                expected = (st.secrets.get("CERVUS_STUDY_CODE") or "").strip()
-                entered_norm = (entered_study_code or "").strip().casefold()
-                expected_norm = expected.casefold()
-
-                if entered_norm and expected_norm and entered_norm == expected_norm:
-                    st.session_state.study_mode = True
-                    st.session_state.study_code_status = "valid"
-
-                    # Hard rules
-                    set_config("mock_mode", False)
-
-                    log_event("study", "Study mode activated")
-                    st.success("Studienmodus aktiv.")
-                    st.rerun()
-                else:
-                    # Gewünscht: falscher Code -> Signal + normaler Flow
-                    st.session_state.study_mode = False
-                    st.session_state.study_code_status = "invalid"
-
-                    log_event("study", "Invalid study code; fallback to normal mode")
-                    st.warning("Studiencode nicht erkannt – du nutzt den normalen Modus.")
-                    st.rerun()
-
-        with col_study2:
-            if st.session_state.get("study_mode", False):
-                if st.button("🚪 Studienmodus beenden", use_container_width=True):
-                    st.session_state.study_mode = False
-                    st.session_state.study_code_status = "none"
-                    log_event("study", "Study mode deactivated")
-                    st.info("Studienmodus deaktiviert.")
-                    st.rerun()
-
-        # Statusanzeige
-        if st.session_state.get("study_mode", False):
-            st.success("Cervus Study Mode: aktiv")
-        elif st.session_state.get("study_code_status") == "invalid":
-            st.info("Cervus Study Mode: nicht aktiv (Code ungültig)")
-
     st.header("⚙️ Einstellungen")
 
     # NEU: Mock-Modus aus Config-System lesen/schreiben
-    if st.session_state.get("study_mode", False):
-    # Hard rule: Study Mode erzwingt echten Pfad
-    set_config("mock_mode", False)
-    st.caption("Studienmodus: Mock-Modus ist deaktiviert.")
-else:
     mock_mode_toggle = st.checkbox(
         "🎭 Mock-Modus (ohne APIs)",
         value=is_mock_mode(),
         help="Aktiviert Beispiel-Transkripte und Mock-Feedback für Testing",
     )
     set_config("mock_mode", mock_mode_toggle)
+
     # API-Status anzeigen
     if not is_mock_mode():
         if OPENAI_AVAILABLE:
@@ -734,7 +653,8 @@ if not st.session_state.user_code_confirmed:
 # =============================================================================
 
 # Pretest nur anzeigen, wenn Nutzer eingeloggt ist UND Pretest nicht übersprungen
-if st.session_state.user_code_confirmed and (not st.session_state.get("study_mode", False)):
+if st.session_state.user_code_confirmed:
+    
     # NEU: Prüfe ob Pretest übersprungen werden soll (aus Admin-Config)
     if not should_skip_pretest():
         # Prüfe ob Pretest nötig
@@ -788,85 +708,78 @@ if st.session_state.phase == "select":
             st.markdown("**Beispielphrasen:**")
             for phrase in task["example_phrases"]:
                 st.markdown(f"- _{phrase}_")
-if not st.session_state.get("study_mode", False):
 
+    # =========================================================================
+    # PLANUNGSFELD: Persönliches Lernziel
+    # =========================================================================
+    st.markdown("---")
+    st.subheader("🎯 Dein Lernziel für diese Session")
 
-        # =========================================================================
-        # PLANUNGSFELD: Persönliches Lernziel
-        # =========================================================================
-        st.markdown("---")
-        st.subheader("🎯 Dein Lernziel für diese Session")
+    st.markdown(
+        "Bevor du startest: Was möchtest du heute konkret üben oder verbessern? "
+        "Das hilft dir, fokussiert zu bleiben – und dem Coach, dir gezieltes Feedback zu geben."
+    )
 
+    # Leitfragen als Inspiration
+    with st.expander("💡 Beispiele für Lernziele", expanded=False):
         st.markdown(
-            "Bevor du startest: Was möchtest du heute konkret üben oder verbessern? "
-            "Das hilft dir, fokussiert zu bleiben – und dem Coach, dir gezieltes Feedback zu geben."
+            """
+- *Ich möchte flüssiger sprechen, ohne lange Pausen.*
+- *Ich will formeller klingen – weniger umgangssprachlich.*
+- *Ich übe, meine Argumente klar zu strukturieren.*
+- *Ich möchte Konjunktiv II sicher verwenden.*
+- *Ich will meine Nervosität in den Griff bekommen.*
+- *Ich übe, höflich aber bestimmt zu formulieren.*
+            """
         )
 
-        # Leitfragen als Inspiration
-        with st.expander("💡 Beispiele für Lernziele", expanded=False):
-            st.markdown(
-                """
-    - *Ich möchte flüssiger sprechen, ohne lange Pausen.*
-    - *Ich will formeller klingen – weniger umgangssprachlich.*
-    - *Ich übe, meine Argumente klar zu strukturieren.*
-    - *Ich möchte Konjunktiv II sicher verwenden.*
-    - *Ich will meine Nervosität in den Griff bekommen.*
-    - *Ich übe, höflich aber bestimmt zu formulieren.*
-                """
-            )
+    learner_goal_input = st.text_area(
+        "Was ist dein Ziel für diese Übung?",
+        value=st.session_state.learner_goal,
+        height=80,
+        placeholder="z.B. Ich möchte heute üben, meine Punkte klar und strukturiert zu präsentieren.",
+        key="learner_goal_input",
+    )
 
-        learner_goal_input = st.text_area(
-            "Was ist dein Ziel für diese Übung?",
-            value=st.session_state.learner_goal,
-            height=80,
-            placeholder="z.B. Ich möchte heute üben, meine Punkte klar und strukturiert zu präsentieren.",
-            key="learner_goal_input",
+    # Optionales Kontextfeld
+    with st.expander("📝 Optionaler Kontext (für wen / warum)", expanded=False):
+        st.markdown(
+            "Falls du einen konkreten Anlass hast, kannst du ihn hier beschreiben. "
+            "Das macht das Feedback noch passender."
+        )
+        learner_context_input = st.text_area(
+            "Kontext (optional):",
+            value=st.session_state.learner_context,
+            height=60,
+            placeholder="z.B. Ich habe nächste Woche ein echtes Meeting mit meinem Chef.",
+            key="learner_context_input",
         )
 
-        # Optionales Kontextfeld
-        with st.expander("📝 Optionaler Kontext (für wen / warum)", expanded=False):
-            st.markdown(
-                "Falls du einen konkreten Anlass hast, kannst du ihn hier beschreiben. "
-                "Das macht das Feedback noch passender."
+    # Meta-Prompt aus Task anzeigen (falls vorhanden)
+    if task.get("meta_prompts", {}).get("plan"):
+        st.info(f"💡 **Planungshinweis:** {task['meta_prompts']['plan']}")
+
+    # Weiter-Button
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        # Button-Text anpassen je nachdem ob Ziel eingegeben
+        if not learner_goal_input.strip():
+            st.caption("💡 Tipp: Ein konkretes Lernziel hilft dir, fokussiert zu bleiben.")
+
+        if st.button("🎙️ Aufnahme starten", type="primary", use_container_width=True):
+            # Ziel und Kontext speichern
+            st.session_state.learner_goal = learner_goal_input.strip()
+            st.session_state.learner_context = (
+                st.session_state.get("learner_context_input", "").strip()
             )
-            learner_context_input = st.text_area(
-                "Kontext (optional):",
-                value=st.session_state.learner_context,
-                height=60,
-                placeholder="z.B. Ich habe nächste Woche ein echtes Meeting mit meinem Chef.",
-                key="learner_context_input",
-            )
-
-        # Meta-Prompt aus Task anzeigen (falls vorhanden)
-        if task.get("meta_prompts", {}).get("plan"):
-            st.info(f"💡 **Planungshinweis:** {task['meta_prompts']['plan']}")
-
-        # Weiter-Button
-        st.markdown("---")
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            # Button-Text anpassen je nachdem ob Ziel eingegeben
-            if not learner_goal_input.strip():
-                st.caption("💡 Tipp: Ein konkretes Lernziel hilft dir, fokussiert zu bleiben.")
-
-            if st.button("🎙️ Aufnahme starten", type="primary", use_container_width=True):
-                # Ziel und Kontext speichern
-                st.session_state.learner_goal = learner_goal_input.strip()
-                st.session_state.learner_context = (
-                    st.session_state.get("learner_context_input", "").strip()
-                )
-                st.session_state.selected_task_id = task_id
-                st.session_state.phase = "record"
-                st.session_state.recording_start = datetime.now()
+            st.session_state.selected_task_id = task_id
+            st.session_state.phase = "record"
+            st.session_state.recording_start = datetime.now()
             
-                # Event loggen
-                log_event("session", "Aufnahme gestartet", {"task_id": task_id})
-                st.rerun()
-else:
-    # Studienmodus: Lernziel/Planung ist deaktiviert (Anti-Priming)
-    st.session_state.learner_goal = ""
-    st.session_state.learner_context = ""
-
+            # Event loggen
+            log_event("session", "Aufnahme gestartet", {"task_id": task_id})
+            st.rerun()
 
 
 # =============================================================================
@@ -874,10 +787,6 @@ else:
 # =============================================================================
 
 elif st.session_state.phase == "record":
-    # Cervus Study Mode: erzwinge echten Audio-Pfad (kein Mock)
-    if st.session_state.get("study_mode", False):
-        set_config("mock_mode", False)
-
     st.header("2️⃣ Sprich jetzt!")
 
     task = get_task(st.session_state.selected_task_id)
@@ -889,8 +798,9 @@ elif st.session_state.phase == "record":
     )
 
     # Lernziel anzeigen (zur Erinnerung)
-    if (not st.session_state.get(\"study_mode\", False)) and st.session_state.learner_goal:
-        st.success(f\"🎯 **Dein Fokus:** {st.session_state.learner_goal}\")
+    if st.session_state.learner_goal:
+        st.success(f"🎯 **Dein Fokus:** {st.session_state.learner_goal}")
+
     # Meta-Prompt (Planungshinweis)
     if task.get("meta_prompts", {}).get("plan"):
         st.markdown(f"💡 *{task['meta_prompts']['plan']}*")
@@ -933,18 +843,13 @@ elif st.session_state.phase == "record":
                 st.warning("👆 Klicke auf das Mikrofon um die Aufnahme zu starten.")
 
         except ImportError:
-    if st.session_state.get("study_mode", False):
-        st.error("Audioaufnahme ist im Studienmodus erforderlich, aber der Audio-Recorder ist nicht verfügbar. Bitte wenden Sie sich an die Studienleitung.")
-        st.stop()
-    else:
-        st.error("❌ Audio-Recorder nicht verfügbar. Aktivere den Mock-Modus in der Sidebar.")
+            st.error(
+                "❌ Audio-Recorder nicht verfügbar. "
+                "Aktiviere den Mock-Modus in der Sidebar."
+            )
 
     else:
         # Mock-Modus: Text-Eingabe statt Audio
-        if st.session_state.get("study_mode", False):
-            st.error("Studienmodus ist aktiv: Mock-Modus ist deaktiviert.")
-            st.stop()
-
         st.warning("🧪 **Mock-Modus aktiv** – Gib deinen Text ein statt zu sprechen:")
 
         mock_text = st.text_area(
@@ -1141,70 +1046,55 @@ elif st.session_state.phase == "feedback":
     cefr_from_kb = None
     if kleiner_baer_result and "cefr" in kleiner_baer_result:
         cefr_from_kb = kleiner_baer_result["cefr"]
-    # Lernziel zur Erinnerung anzeigen – im Studienmodus deaktiviert
-    if (not st.session_state.get("study_mode", False)) and st.session_state.learner_goal:
+
+    # Lernziel zur Erinnerung anzeigen
+    if st.session_state.learner_goal:
         st.info(f"🎯 **Dein Fokus war:** {st.session_state.learner_goal}")
+
     # Tabs für verschiedene Ansichten
-    # Studienmodus: Anti-Priming -> keine Metriken/LLM-Input vor Akzeptanzmessung
-    if st.session_state.get("study_mode", False):
-        tabs_list = ["💬 Feedback", "📝 Transkript"]
-    else:
-        tabs_list = ["💬 Feedback", "📝 Transkript"]
-        if get_config("show_metrics_tab", True):
-            tabs_list.append("📊 Metriken")
-        if get_config("show_llm_input_tab", True):
-            tabs_list.append("🔌 LLM-Input")
+    tabs_list = ["💬 Feedback", "📝 Transkript", "📊 Metriken"]
+    
+    # NEU: LLM-Input Tab nur anzeigen wenn in Config aktiviert
+    if get_config("show_llm_input_tab", True):
+        tabs_list.append("🔌 LLM-Input")
+    
     tabs = st.tabs(tabs_list)
     tab_feedback = tabs[0]
     tab_transcript = tabs[1]
-    tab_metrics = None
-    tab_api = None
+    tab_metrics = tabs[2]
+    tab_api = tabs[3] if len(tabs) > 3 else None
 
-    # Optional Tabs (nur im Normalmodus)
-    if not st.session_state.get("study_mode", False):
-        idx = 2
-        if "📊 Metriken" in tabs_list:
-            tab_metrics = tabs[idx]
-            idx += 1
-        if "🔌 LLM-Input" in tabs_list:
-            tab_api = tabs[idx]
     # -------------------------------------------------------------------------
     # Tab: Feedback
     # -------------------------------------------------------------------------
     with tab_feedback:
-        # CEFR-Badge – im Studienmodus verborgen (Anti-Priming)
-        if not st.session_state.get("study_mode", False):
-
-                # CEFR-Badge (wenn möglich aus Kleiner Bär)
-                col1, col2, col3 = st.columns([1, 2, 1])
-                with col2:
-                    if cefr_from_kb:
-                        # Zeige auch Selbsteinschätzung zum Vergleich
-                        cefr_self = get_pretest_response("cefr_speaking")
-                        delta_text = f"Score: {cefr_from_kb.get('score', 0.0):.2f}"
-                        if cefr_self:
-                            delta_text += f" | Selbst: {cefr_self}"
+        # CEFR-Badge (wenn möglich aus Kleiner Bär)
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if cefr_from_kb:
+                # Zeige auch Selbsteinschätzung zum Vergleich
+                cefr_self = get_pretest_response("cefr_speaking")
+                delta_text = f"Score: {cefr_from_kb.get('score', 0.0):.2f}"
+                if cefr_self:
+                    delta_text += f" | Selbst: {cefr_self}"
                 
-                        st.metric(
-                            "Geschätztes Niveau",
-                            cefr_from_kb.get("label", "–"),
-                            delta=delta_text,
-                        )
-                    elif hasattr(feedback, "cefr_label") and feedback.cefr_label:
-                        st.metric(
-                            "Geschätztes Niveau",
-                            feedback.cefr_label,
-                            delta=(
-                                f"Score: {feedback.cefr_score:.1f}"
-                                if hasattr(feedback, "cefr_score") and feedback.cefr_score
-                                else None
-                            ),
-                        )
+                st.metric(
+                    "Geschätztes Niveau",
+                    cefr_from_kb.get("label", "–"),
+                    delta=delta_text,
+                )
+            elif hasattr(feedback, "cefr_label") and feedback.cefr_label:
+                st.metric(
+                    "Geschätztes Niveau",
+                    feedback.cefr_label,
+                    delta=(
+                        f"Score: {feedback.cefr_score:.1f}"
+                        if hasattr(feedback, "cefr_score") and feedback.cefr_score
+                        else None
+                    ),
+                )
 
-                st.markdown("---")
-
-        else:
-            st.caption("Studienmodus: Ergebnis-/Metrik-Anzeigen sind vorerst ausgeblendet.")
+        st.markdown("---")
 
         # Feedback anzeigen - unterscheide zwischen GPT und Mock
         if hasattr(feedback, 'text'):
@@ -1227,18 +1117,14 @@ elif st.session_state.phase == "feedback":
         st.subheader("Dein Text")
         st.markdown(f"> {transcript_text}")
 
-    # Studienmodus: keine numerischen Metriken vor Akzeptanzmessung
-    if not st.session_state.get("study_mode", False):
+        st.markdown("---")
 
-
-            st.markdown("---")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                word_count = len(transcript_text.split()) if transcript_text else 0
-                st.metric("Wörter", word_count)
-            with col2:
-                st.metric("Dauer", f"{duration:.0f}s")
+        col1, col2 = st.columns(2)
+        with col1:
+            word_count = len(transcript_text.split()) if transcript_text else 0
+            st.metric("Wörter", word_count)
+        with col2:
+            st.metric("Dauer", f"{duration:.0f}s")
 
         if is_mock_mode():
             st.caption("ℹ️ Mock-Modus: Eingegebener Text")
