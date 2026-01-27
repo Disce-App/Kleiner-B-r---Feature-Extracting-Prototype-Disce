@@ -1,6 +1,6 @@
 # Integrations
 
-> Automatisch generiert am 2026-01-27 08:53
+> Automatisch generiert am 2026-01-27 12:58
 
 Diese Datei listet externe Services/Libraries, die im Code referenziert werden.
 

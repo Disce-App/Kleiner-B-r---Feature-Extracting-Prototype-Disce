@@ -1,325 +1,199 @@
-# Systemarchitektur: Disce / Kleiner Bär
+# Systemarchitektur: Disce (Großer Bär + Kleiner Bär)
 
-> **Zweck:** Technische Übersicht für Entwickler und LLMs  
-> **Stand:** Januar 2026
-
----
-
-## Übersicht
-
-Disce ist ein Sprachcoaching-System für fortgeschrittene Deutschlernende (B2–C2). Die Architektur folgt einem **4-Schichten-Modell** für Diagnostik und Feedback.
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           BENUTZER-INTERFACE                                 │
-│                        (Streamlit: pages/grosser_baer.py)                   │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐           │
-│  │ Login   │→ │ Pretest │→ │  Task   │→ │ Record  │→ │Feedback │→ Reflect  │
-│  │ (Code)  │  │ (MASQ)  │  │ wählen  │  │(Audio)  │  │  + KPIs │           │
-│  └─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────┘           │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         4-SCHICHTEN-DIAGNOSTIK                               │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │ SCHICHT 4: INTERPRETATION                                              │ │
-│  │ → CEFR-Aggregation, Home-KPIs, Interventionsempfehlungen              │ │
-│  │ → disce_core.py: build_disce_metrics(), estimate_cefr_*()             │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                      ▲                                       │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │ SCHICHT 3: LLM-ANALYSE                                                 │ │
-│  │ → Narratives Feedback, Argumentation, Register, Pragmatik             │ │
-│  │ → openai_services.py + grosser_baer/prompts.py                        │ │
-│  │ → GPT-4o-mini mit SYSTEM_PROMPT_COACH + FEEDBACK_PROMPT_TEMPLATE      │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                      ▲                                       │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │ SCHICHT 2: AZURE SERVICES                                    [GEPLANT] │ │
-│  │ → Speech-to-Text, Pronunciation Assessment, Prosody                   │ │
-│  │ → Accuracy Score, Fluency Score, Prosody Score                        │ │
-│  │ → Status: NICHT IMPLEMENTIERT                                         │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                      ▲                                       │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │ SCHICHT 1: DETERMINISTISCHE ANALYSE                          [AKTIV]  │ │
-│  │ → CAF-Metriken, NLP-Features, Lexik, Syntax, Kohäsion                 │ │
-│  │ → features_viewer.py (1.865 Zeilen, 35+ Funktionen)                   │ │
-│  │ → 100% reproduzierbar: gleicher Input → gleiches Ergebnis            │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                      ▲                                       │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │ ROHDATEN                                                               │ │
-│  │ → Audio (Browser) → Whisper → Transkript                              │ │
-│  │ → Oder: Mock-Modus (Text-Eingabe direkt)                              │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           PERSISTENZ                                         │
-│  Session-Daten → Make Webhook → Airtable                                    │
-│  (user_code, transcript, metrics, feedback, reflection)                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+> **Zweck:** Technische Übersicht für Entwickler:innen und Agents (LLMs/Coding-Agents), die am Repo arbeiten.
+> > **Stand:** 2026-01-27
+> > **Wichtig (Evolving Architecture):** Diese Architektur ist **ein Prototyp in aktiver Entwicklung**. > Teile sind bewusst pragmatisch/heuristisch umgesetzt (z.B. KPIs, Logging-Payload), und **Strukturen können sich noch ändern**.
 
 ---
 
-## Schicht 1: Deterministische Analyse (Kleiner Bär)
+## 0) Orientierung: Was ist in diesem Repo?
 
-### Toolstack
+Das Repo ist ein **kombiniertes** System aus:
 
-| Tool | Zweck | Import |
-|------|-------|--------|
-| **SoMaJo** | Tokenisierung (CMC-optimiert) | `from somajo import SoMaJo` |
-| **HanTa** | POS-Tagging + Lemmatisierung | `from HanTa import HanoverTagger` |
-| **spaCy** | Dependency Parsing, Morphologie | `de_core_news_lg` |
-| **LanguageTool** | Grammatik-Check | API: `api.languagetool.org` |
-| **wordfreq** | Wortfrequenz (Zipf-Score) | `from wordfreq import zipf_frequency` |
+- **Großer Bär (Frontend Coach)**: Streamlit UI, Speaking-Loop, Session-State, LLM-Call, Persistenz (Make/Airtable).
+- **Kleiner Bär (Analyse)**: deterministische Textanalyse, Hotspots, CEFR-Schätzung, Disce-KPIs.
 
-### Feature-Gruppen
-
-#### CAF-Trias (Complexity, Accuracy, Fluency)
-
-| Gruppe | Features | Funktionen |
-|--------|----------|------------|
-| **Complexity** | Satzlänge, Nebensätze, Einbettungstiefe, komplexe NPs | `sentence_lengths()`, `estimated_subclauses()`, `complex_nps_per_sentence()`, `vorfeld_lengths()` |
-| **Accuracy** | Grammatikfehler pro 100 Wörter, Fehlertypen | `check_grammar_with_languagetool()` |
-| **Fluency** | (Bei Audio: WPM, Pausen, Filler) | *Aktuell via Azure geplant* |
-
-#### Lexikalische Features
-
-| Feature | Beschreibung | Funktion |
-|---------|--------------|----------|
-| TTR / MATTR | Type-Token-Ratio (Moving Average) | `moving_average_ttr()` |
-| Zipf-Frequenz | Durchschnittliche Wortfrequenz | `word_frequency_features()` |
-| Seltene Wörter | Wörter mit Zipf < 3.0 | `get_rare_words_list()` |
-
-#### Syntaktische Features
-
-| Feature | Beschreibung | Funktion |
-|---------|--------------|----------|
-| Dependency-Tiefe | Max/Mean Baumtiefe | `dependency_tree_features()` |
-| Satztypen | Relativ-/Konditional-/Finalsätze | `clause_type_features()` |
-
-#### Stilistische Features
-
-| Feature | Beschreibung | Funktion |
-|---------|--------------|----------|
-| Passiv | Vorgangs-/Zustands-/Modalpassiv | `passive_voice_features()` |
-| Modalpartikeln | ja, doch, halt, eben, wohl, ... | `modal_particle_features()` |
-| Pronomen | ich/wir/man/Sie-Verteilung | `pronoun_stats()` |
-| Modus | Indikativ/Konjunktiv I/II | `verb_mood_features()` |
-
-#### Kohäsion
-
-| Feature | Beschreibung | Funktion |
-|---------|--------------|----------|
-| Konnektoren | Anzahl + Typen (via DiMLex-basiert) | `cohesion_features()` |
-| Satz-Overlap | Lexikalische Überlappung | `sentence_overlap()` |
-
-### Output: 8 Dimensionen
-
-`compute_dimension_scores()` aggregiert alle Features zu 8 normalisierten Dimensionen (0–1):
-
-```python
-{
-    "lexical_diversity": 0.72,    # TTR + Frequenz
-    "syntactic_complexity": 0.65, # Nebensätze + Tiefe
-    "grammar_accuracy": 0.88,     # LanguageTool
-    "cohesion": 0.70,             # Konnektoren + Overlap
-    "style_variation": 0.55,      # Passiv + Modalpartikeln
-    "formality": 0.80,            # Pronomen + Register-Marker
-    "morphological_control": 0.75,# Modus + Tempus
-    "fluency": 0.60               # (Placeholder ohne Audio)
-}
-```
-
-### CEFR-Schätzung
-
-`estimate_cefr_score_from_dims()` berechnet einen Score (0–1), der zu Labels gemappt wird:
-
-| Score | Label |
-|-------|-------|
-| < 0.40 | B1 |
-| 0.40–0.55 | B2 |
-| 0.55–0.70 | B2+ |
-| 0.70–0.82 | C1 |
-| 0.82–0.92 | C1+ |
-| > 0.92 | C2 |
+Repo-Struktur (high-level): `pages/`, `grosser_baer/`, `config/`, `docs/`, plus Root-Module (`disce_core.py`, `features_viewer.py`, `openai_services.py`, `app.py`).
 
 ---
 
-## Schicht 3: LLM-Analyse
+## 1) Leitprinzipien
 
-### Prompt-Architektur
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    SYSTEM_PROMPT_COACH                          │
-│  - Persönlichkeit: warmherzig, präzise, fokussiert              │
-│  - Format: "Das ist gelungen" → "Fokus fürs nächste Mal" →     │
-│            "Mini-Übung"                                         │
-│  - Prinzipien: konkrete Zitate, max 2 Fokuspunkte, Register    │
-└─────────────────────────────────────────────────────────────────┘
-                              +
-┌─────────────────────────────────────────────────────────────────┐
-│                 FEEDBACK_PROMPT_TEMPLATE                         │
-│  - Kontext: Task, Situation, Register, Zeitvorgabe              │
-│  - Transkript: User-Text                                        │
-│  - Metriken: CEFR, Lexik, Grammatik, Kohäsion, ...             │
-│  - Prosodie: (wenn Azure aktiv)                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Metakognitions-Framework
-
-Für jede Phase gibt es Prompts in `METACOGNITION_PROMPTS`:
-
-| Phase | Zweck | Beispiel |
-|-------|-------|----------|
-| **Plan** | Vor der Übung | "Was sind die 2-3 wichtigsten Punkte?" |
-| **Monitor** | Während der Übung | "Halbzeit – haben Sie Ihre Hauptpunkte genannt?" |
-| **Reflect** | Nach der Übung | "Was würden Sie anders machen?" |
+1. **Loop statt Feature-Sammlung**: Der Kern ist der Speaking-Loop: Aufgabe → (Audio oder Mock) → Analyse → Feedback → Reflexion → optional speichern.
+2. **Contracts > Impl-Details**: Entscheidend sind stabile Schnittstellen (z.B. `analyze_text_for_llm` und `coach_input`).
+3. **Layering**: Analyse ist als Schichten-Modell gedacht (deterministisch → Azure geplant → LLM → Interpretation/Anzeige).
+4. **Ehrliche Doku**: Alles, was „geplant“ ist, wird als geplant markiert; nichts wird „schön geredet“.
 
 ---
 
-## Datenfluss: Eine Session
+## 2) Runtime-Komponenten (Wer macht was?)
 
-```
-1. LOGIN
-   └→ user_code → session_state
+### 2.1 UI / Orchestrierung (Großer Bär)
 
-2. PRETEST (einmalig pro User)
-   └→ CEFR-Selbsteinschätzung, MASQ-Scores → session_state.pretest_responses
+**Datei:** `pages/grosser_baer.py`
 
-3. TASK WÄHLEN
-   └→ task_id, learner_goal, learner_context → session_state
+- Steuert den Phasen-Flow über `st.session_state.phase` mit mindestens: `select`, `record`, `feedback`.
+- Baut den LLM-Input via `build_coach_input(...)`.
+- Triggert Persistenz via `send_session_to_airtable()`.
 
-4. AUFNAHME
-   ├→ [Mock-Modus] Text-Eingabe → transcript
-   └→ [Echt-Modus] audio_recorder → Whisper → transcript
+### 2.2 Deterministische Analyse (Kleiner Bär)
 
-5. ANALYSE (Kleiner Bär)
-   └→ analyze_text_for_llm(transcript, context)
-      ├→ tokenize_and_split()          # SoMaJo
-      ├→ pos_tag_sentences()           # HanTa
-      ├→ analyze_all()                 # 30+ Features
-      ├→ compute_dimension_scores()    # 8 Dimensionen
-      ├→ estimate_cefr_*()             # CEFR-Label
-      ├→ build_metrics_summary()       # LLM-freundlich
-      ├→ build_disce_metrics()         # 5 Home-KPIs
-      └→ select_hotspots()             # Übungs-Sätze
+**Datei:** `disce_core.py`
 
-6. COACH-INPUT BAUEN
-   └→ build_coach_input()
-      {
-        user, pretest, task_metadata, session_metadata,
-        learner_planning, transcript,
-        analysis: { layer1_deterministic, layer2_azure, cefr, home_kpis, hotspots },
-        reflection
-      }
+- Bietet das stabile Interface `analyze_text_for_llm(text, context)`.
+- Baut `metrics_summary` via `build_metrics_summary(...)`.
+- Identifiziert `hotspots` via `select_hotspots(...)`.
 
-7. LLM-FEEDBACK
-   ├→ [Mock-Modus] MOCK_FEEDBACK (statisch)
-   └→ [Echt-Modus] generate_coach_feedback(coach_input)
-      └→ GPT-4o-mini mit SYSTEM_PROMPT_COACH + FEEDBACK_PROMPT_TEMPLATE
+**Features/Extraktion:** `features_viewer.py`
 
-8. ANZEIGE
-   └→ Tabs: Feedback | Transkript | Metriken | (LLM-Input)
+- Enthält die zugrundeliegenden Feature-Funktionen (Tokenisierung, POS, Syntax, Lexik, Kohäsion, …).
 
-9. REFLEXION
-   └→ reflection_text → update_coach_input_with_reflection()
+### 2.3 LLM-Services (kanonisch: OpenAI)
 
-10. SPEICHERN
-    └→ send_session_to_airtable() → Make Webhook → Airtable
-```
+**Datei:** `openai_services.py`
+
+- **Whisper** für Transkription (`whisper-1`).
+- **Chat** für Coach-Feedback (`gpt-4o-mini`).
+
+Wichtig: Der Chat-Call serialisiert `coach_input` als JSON in die User-Message.
+
+### 2.4 Persistenz / Integrationen
+
+- Make Webhook → Airtable (flacher Payload in `send_session_to_airtable()`).
+- Airtable kann per Config deaktiviert sein.
 
 ---
 
-## Modul-Übersicht
+## 3) Der kanonische Datenfluss (End-to-End)
 
-### Kernmodule
+### 3.1 Phasen im UI
 
-| Datei | Zeilen | Verantwortung |
-|-------|--------|---------------|
-| `features_viewer.py` | 1.865 | **Kleiner Bär:** Alle NLP-Features |
-| `disce_core.py` | 499 | Bridge: Features → Dimensionen → CEFR → KPIs |
-| `pages/grosser_baer.py` | 1.258 | **Großer Bär:** Speaking Coach UI |
-| `openai_services.py` | 148 | Whisper + GPT-4o-mini |
-| `grosser_baer/prompts.py` | ~150 | System-Prompt + Templates |
+1. **Select**: Nutzer wählt Task + setzt Lernziel/optional Kontext.
+2. **Record**: Audioaufnahme (Echtmodus) oder Texteingabe (Mock).
+3. **Feedback**:
+   - Transcript bestimmen
+   - Kleiner Bär Analyse
+   - Coach-Input bauen
+   - LLM Feedback generieren (OpenAI)
+   - Ergebnisse anzeigen (Feedback/Transkript/Metriken/optional LLM-Input)
+4. **Reflexion + Save**:
+   - Reflexion erfassen, in `coach_input` ergänzen
+   - optional: per Make/Airtable speichern
 
-### Unterstützende Module
+### 3.2 Zentrale Contracts
 
-| Datei | Verantwortung |
-|-------|---------------|
-| `grosser_baer/task_templates.py` | Sprechaufgaben-Definitionen |
-| `grosser_baer/audio_handler.py` | Audio-Verarbeitung (Mock + echt) |
-| `grosser_baer/feedback_generator.py` | Feedback-Logik (Mock) |
-| `grosser_baer/session_logger.py` | Logging-Utilities |
-| `config/app_config.py` | Zentrale Konfiguration |
-| `config/pretest_loader.py` | Pretest-UI + Datenverarbeitung |
+#### Contract A: `analyze_text_for_llm(text, context) -> dict`
+Dieses Interface ist der **stabile Output** der deterministischen Analyse für andere Systeme.
 
----
+Rückgabe enthält u.a.:
+- `metrics_summary`
+- `hotspots`
+- `cefr: {score, label}`
+- `disce_metrics`
 
-## Externe Abhängigkeiten
+#### Contract B: `coach_input` (LLM Input)
+`coach_input` ist der **kanonische Input-Contract** für den Coach-LLM.
 
-| Service | Zweck | Status |
-|---------|-------|--------|
-| **OpenAI API** | Whisper (STT) + GPT-4o-mini (Feedback) | ✅ Aktiv |
-| **LanguageTool API** | Grammatik-Check | ✅ Aktiv |
-| **Make.com** | Webhook-Orchestrierung | ✅ Aktiv |
-| **Airtable** | Session-Persistenz | ✅ Aktiv |
-| **Azure Speech** | Pronunciation + Prosody | ❌ Geplant |
+Top-Level:
+- `user`, `pretest`, `task_metadata`, `session_metadata`, `learner_planning`, `transcript`, `analysis`, `reflection`
 
----
-
-## Geplante Erweiterungen
-
-### Schicht 2: Azure Services
-
-```python
-# Ziel-Struktur in coach_input["analysis"]["layer2_azure"]
-{
-    "pronunciation": {
-        "accuracy_score": 0.85,
-        "fluency_score": 0.78,
-        "completeness_score": 0.92,
-        "prosody_score": 0.70
-    },
-    "word_level": [...],  # Pro-Wort-Scores
-    "phoneme_level": [...] # Phonem-Details
-}
-```
-
-### Weitere Module (Phase 2)
-
-- `metaphor_and_frame_map` – Konzeptuelle Metaphern
-- `audience_reaction_simulation` – Leserreaktionen simulieren
-- `stress_response_analysis` – Tonveränderung unter Druck
+`analysis` enthält:
+- `layer1_deterministic`: `metrics_summary`
+- `layer2_azure`: aktuell `None` (Azure geplant)
+- `cefr`, `home_kpis`, `hotspots`
 
 ---
 
-## Konventionen
+## 4) Analyse-Schichten (Status: aktiv vs geplant)
 
-### Naming
-- **Dateien:** `snake_case.py`
-- **Klassen:** `PascalCase`
-- **Funktionen:** `snake_case`, Verb zuerst (`get_*`, `build_*`, `analyze_*`)
-- **Konstanten:** `SCREAMING_SNAKE_CASE`
+### Schicht 1: Deterministische Analyse (aktiv)
 
-### Feature-Funktionen
-- Input: `tagged_sentences` (Liste von Sätzen, jeder Satz = Liste von `(word, lemma, pos)` Tuples)
-- Output: Dict mit benannten Werten
-- Fehlerbehandlung: Nicht crashen, Defaults zurückgeben
+**Ziel:** Reproduzierbare Metriken aus Text/Transkript (gleicher Input → gleiches Ergebnis).
 
-### Dimensions-Scores
-- Immer normalisiert auf 0–1
-- `clamp01()` verwenden
-- Dokumentieren, welche Features eingehen
+**Pipeline (vereinfacht):**
+- Tokenisierung/POS/Syntax/Lexik/Kohäsion → Dimensions-Scores → CEFR score/label → Summary + Hotspots
+
+**Outputs:**
+- `metrics_summary` (LLM-freundliches, aber numerisches Summary)
+- `hotspots` (annotierte Sätze)
+- `disce_metrics` (5 KPIs)
+
+### Schicht 2: Azure Services (geplant)
+
+**Ziel:** tiefere Audio-/Prosodie-/Pronunciation-Analyse (Wort-Timestamps, Prosody, Pronunciation Assessment).
+
+**Contract-Position:**
+- `coach_input["analysis"]["layer2_azure"]` ist aktuell `None` und soll später ein strukturiertes Objekt werden.
+
+### Schicht 3: LLM-Analyse / Coaching (aktiv, kanonisch: OpenAI)
+
+**Ziel:** Narrative Coaching-Rückmeldung, die die deterministischen Signale in didaktisch sinnvolles Feedback übersetzt.
+
+- System-Prompt definiert Format/Regeln (keine Zahlen ausgeben, max 2 Fokus-Punkte, Sie-Form).
+- `coach_input` wird als JSON übergeben.
+
+### Schicht 4: Interpretation / Anzeige / Aggregation (teilweise aktiv)
+
+**Ziel:** Zusammenfassung für UI und Persistenz.
+
+Aktuell u.a.:
+- Anzeige von CEFR + Disce-Dimensionen
+- Auswahl und Anzeige von Hotspots
+- Export/Logging-Format (Make/Airtable Payload)
+
+Hinweis: Diese Schicht ist im Prototyp teilweise „UI-getrieben“ und kann sich bei Produktreife noch stärker zu einem separaten Aggregationsmodul entwickeln.
 
 ---
 
-*Zuletzt aktualisiert: 2026-01-24*
+## 5) Persistenz & Observability
+
+### 5.1 Make → Airtable
+
+- Die UI baut einen **flachen Payload** (Top-Level Felder) für den Make Webhook.
+- Enthält u.a. Transcript, Reflection, CEFR, `disce_metrics` (als JSON), sowie ausgewählte Pretest/MASQ-Felder.
+
+### 5.2 Lokale Logs
+
+Es existiert außerdem ein JSON-Session-Logger (`grosser_baer/session_logger.py`) als strukturierte, exportfreundliche Speicherung.
+
+---
+
+## 6) Run Modes & Config
+
+### 6.1 Mock vs Echt
+
+- Mock-Modus: Texteingabe statt Audio, Mock-Feedback-Pfad.
+- Echt-Modus: Audio → Whisper → GPT-Feedback.
+
+### 6.2 `mode` Feld
+
+Im aktuellen UI werden mindestens diese Mode-Werte genutzt:
+- `mock_speaking`
+- `speaking`
+
+Der Mode fließt in `coach_input.session_metadata.mode` und wird zusätzlich als Kontext an `analyze_text_for_llm()` übergeben.
+
+---
+
+## 7) Known Issues / Tech Debt (bewusst dokumentiert)
+
+1. **Task Feldnamen drift**: UI nutzt teils `task.get("level")`, Tasks definieren aber `cefr_target`. Das kann zu stillen `None`-Werten in `coach_input` führen.
+2. **Heuristische KPIs**: Einige KPIs sind aktuell heuristisch bzw. context-defaulted (bis Azure/weiteres Scoring ergänzt wird).
+3. **Evolving Architecture**: Mehrere Teile (Azure Layer 2, Metrik-Definitionen, Persistenzschema) sind bewusst noch im Fluss.
+
+---
+
+## 8) Roadmap (kurz) – was sich wahrscheinlich ändern wird
+
+### 8.1 Azure Layer 2 einführen
+- `layer2_azure` wird von `None` zu einem strukturierten Objekt.
+- Prosody-/Pronunciation-Features sollen in UI + Coach-Input auftauchen.
+
+### 8.2 Contract-Stabilität erhöhen
+Empfehlung (wenn ihr das einführen wollt):
+- `schema_version` im `coach_input` ergänzen
+- Breaking Changes nur mit Version-Bump
+
+---
+
+*Zuletzt aktualisiert: 2026-01-27*

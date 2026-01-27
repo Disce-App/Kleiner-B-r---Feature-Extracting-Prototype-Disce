@@ -1,6 +1,6 @@
 # Module Reference
 
-> Automatisch generiert am 2026-01-27 08:53
+> Automatisch generiert am 2026-01-27 12:58
 
 ## 📁 (root)
 

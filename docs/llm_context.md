@@ -1,166 +1,212 @@
-# LLM Context für Disce / Kleiner Bär
+# LLM Context für Disce (Großer Bär + Kleiner Bär)
 
-> **Zweck:** Schnelleinstieg für Claude, Goose oder andere LLMs, die mit diesem Repo arbeiten.  
-> **Stand:** Januar 2026  
-> **Maintainer:** [Dein Name]
-
----
-
-## Was ist das hier?
-
-**Disce** ist ein Sprachcoaching-System für fortgeschrittene Deutschlernende (B2–C2).
-
-Das System besteht aus zwei Hauptmodulen:
-
-| Modul | Rolle | Hauptdateien |
-|-------|-------|--------------|
-| **Großer Bär** | Speaking Coach – UI, Feedback-Loop, Session-Management | `pages/grosser_baer.py`, `grosser_baer/*.py` |
-| **Kleiner Bär** | Feature-Extraktion – NLP, CAF-Metriken, CEFR-Schätzung | `features_viewer.py`, `disce_core.py` |
-
-**Kern-Idee:** User spricht/schreibt → Kleiner Bär extrahiert Metriken → LLM generiert narratives Feedback → User reflektiert.
+> **Zweck:** Schnelleinstieg für LLMs, die in diesem Repo Änderungen umsetzen (Refactors, Feature-Erweiterungen, Prompt-/Contract-Änderungen).
+> > **Kanonischer Provider (Stand):** OpenAI (Chat + Whisper).
+> > **Dokument-Typ:** _Living Doc_ (soll nach größeren Änderungen zusammen mit den generated docs aktualisiert werden).
 
 ---
 
-## Aktueller Stand (Januar 2026)
+## 0) TL;DR – Was ist dieses Repo?
 
-### ✅ Funktioniert produktiv
-- **Deterministische Analyse (Schicht 1):** 30+ NLP-Features (SoMaJo, HanTa, spaCy, LanguageTool, wordfreq)
-- **CEFR-Schätzung:** Regelbasiert aus 8 Dimensionen
-- **LLM-Feedback:** GPT-4o-mini mit strukturiertem Prompt
-- **Session-Logging:** Airtable via Make Webhook
-- **Streamlit-UI:** Vollständiger Flow (Login → Pretest → Task → Aufnahme → Feedback → Reflexion)
+Dieses Repo enthält zwei eng gekoppelte Teile:
 
-### 🔧 Funktioniert bedingt
-- **Audio-Aufnahme:** Browser-Mikrofon via `audio_recorder_streamlit`
-- **Transkription:** OpenAI Whisper (wenn API-Key vorhanden), sonst Mock-Modus
+- **Großer Bär (Frontend Coach)**: Streamlit UI für den Speaking-Loop (Aufgabe wählen → aufnehmen/mock → Feedback → Reflexion → optional speichern).
+- **Kleiner Bär (Analyse / Feature-Extraction)**: Deterministische Textanalyse (Feature-Extraktion), Hotspots, CEFR-Schätzung und Disce-KPIs.
 
-### ❌ Noch nicht implementiert
-- **Azure Speech-to-Text:** Vorbereitet in Architektur, Code fehlt
-- **Azure Pronunciation Assessment:** Geplant für Prosodie-Analyse
-- **Schicht 2 (Azure Services):** Komplett ausstehend
-
-### ⚠️ Bekanntes Tech Debt
-- `features_viewer.py` hat 1.865 Zeilen → sollte aufgeteilt werden
-- 4 von 5 Home-KPIs sind Hardcoded-Defaults (nur `sentence_cohesion` ist echt)
-- Demo-Dateien im Root-Verzeichnis → sollten in `/experiments/` verschoben werden
-- "Neuer Ordner" existiert leer im Repo
+Wichtig: Obwohl die Begriffe „Großer Bär“ / „Kleiner Bär“ getrennte Rollen beschreiben, liegen beide im selben Repo und sind zur Laufzeit direkt gekoppelt.
 
 ---
 
-## Wo finde ich was?
+## 1) Kanonischer LLM-Flow (OpenAI)
 
-### Dokumentation
-| Datei | Inhalt |
-|-------|--------|
-| `docs/architecture.md` | Systemarchitektur, Datenfluss, 4 Schichten |
-| `docs/llm_context.md` | **Diese Datei** – Schnelleinstieg |
-| `docs/generated/repo_map.md` | Auto-generierte Dateistruktur |
-| `docs/generated/modules.md` | Auto-generierte Modul-Übersicht |
-| `docs/generated/integrations.md` | Erkannte externe Services |
+### 1.1 Audio → Transkript
+- Im Echtmodus wird Audio via OpenAI Whisper transkribiert.
+- Im Mock-Modus wird der „gesprochene“ Text manuell eingegeben.
 
-### Code-Einstiegspunkte
-| Was | Wo |
-|-----|-----|
-| **Streamlit Entry** | `app.py` |
-| **Speaking Coach UI** | `pages/grosser_baer.py` |
-| **Feature-Extraktion** | `features_viewer.py` |
-| **Features → UI Bridge** | `disce_core.py` |
-| **LLM Prompts** | `grosser_baer/prompts.py` |
-| **Task-Templates** | `grosser_baer/task_templates.py` |
-| **OpenAI Services** | `openai_services.py` |
-| **Pretest/MASQ** | `config/pretest_loader.py`, `config/pretest_config.json` |
+### 1.2 Textanalyse („Kleiner Bär“)
+Der UI-Pfad nutzt ein schlankes Interface:
 
-### Datenfluss (vereinfacht)
-```
-User Input (Audio/Text)
-       ↓
-[Whisper] → Transkript
-       ↓
-[features_viewer.py] → 30+ NLP-Features
-       ↓
-[disce_core.py] → Aggregation (8 Dimensionen, CEFR, KPIs, Hotspots)
-       ↓
-[grosser_baer.py] → build_coach_input() → JSON-Block
-       ↓
-[openai_services.py] → GPT-4o-mini mit SYSTEM_PROMPT_COACH
-       ↓
-Feedback-Anzeige + Reflexion + Airtable-Logging
-```
+- `disce_core.analyze_text_for_llm(text, context)`
+
+Output (stabiler Contract):
+- `metrics_summary`
+- `hotspots`
+- `cefr` (score + label)
+- `disce_metrics`
+
+### 1.3 Coach Input (JSON Contract)
+Der LLM bekommt **einen JSON-Block**, der in der UI gebaut wird:
+
+- `pages/grosser_baer.py::build_coach_input(...)`
+
+Dieses Objekt ist der **kanonische Input-Contract** für das Coaching.
+
+### 1.4 Feedback Generation (OpenAI Chat)
+Das Coaching-Feedback wird über OpenAI Chat generiert:
+
+- `openai_services.generate_coach_feedback(coach_input)`
+
+Dabei wird `coach_input` als JSON in die User-Message serialisiert (kein separates Prompt-Template als „user prompt“).
 
 ---
 
-## Für LLMs: Do's and Don'ts
+## 2) Output-Contract: Wie das LLM antworten muss
 
-### ✅ Do's
-- **Kleine Schritte:** Änderungen fokussiert und testbar halten
-- **Metriken nutzen:** Das System ist datenbasiert – Feedback sollte auf echten Features basieren
-- **Docs aktualisieren:** Nach strukturellen Änderungen `python generate_docs.py` ausführen
-- **Kontext beachten:** Pretest-Daten (CEFR-Selbsteinschätzung, MASQ) fließen ins Coaching ein
-- **Schichten respektieren:** Deterministisch (Schicht 1) → Azure (Schicht 2) → LLM (Schicht 3) → Interpretation (Schicht 4)
+Die Output-Regeln sind im System Prompt definiert (siehe `grosser_baer/prompts.py`).
 
-### ❌ Don'ts
-- **Nicht `features_viewer.py` komplett umschreiben** ohne vorherigen Refactoring-Plan
-- **Keine neuen Integrationen** ohne Eintrag in Docs
-- **Keine Magic Numbers** – Schwellenwerte dokumentieren oder in Config auslagern
-- **Nicht Azure/Whisper voraussetzen** – Mock-Modus muss immer funktionieren
+### 2.1 Format (muss stabil bleiben)
+Antwort ist:
+- Deutsch
+- **Sie-Form**
+- professionell, aber nicht steif
 
----
+Verwende **genau** diese Überschriften:
 
-## Typische Aufgaben für LLMs
+- Aufgabenerfüllung
+- Struktur & roter Faden
+- Ton & Wirkung
+- Sprache im Detail
+- Fokus fürs nächste Mal
 
-### 1. Feature hinzufügen
-1. Funktion in `features_viewer.py` implementieren
-2. In `analyze_all()` aufrufen
-3. In `compute_dimension_scores()` einbinden (falls relevant für Dimensionen)
-4. In `build_metrics_summary()` für LLM-Output aufnehmen
-
-### 2. Neuen Task-Typ erstellen
-1. Template in `grosser_baer/task_templates.py` hinzufügen
-2. Evaluation-Focus und Meta-Prompts definieren
-3. Ggf. spezifische Prompt-Anpassungen in `prompts.py`
-
-### 3. CEFR-Schätzung verbessern
-- Schwellenwerte in `estimate_cefr_score_from_dims()` anpassen
-- Gewichtungen der Dimensionen in `compute_dimension_scores()` prüfen
-
-### 4. Azure-Integration bauen
-- Ziel: `layer2_azure` in `coach_input["analysis"]` befüllen
-- Pronunciation Assessment Scores integrieren
-- Prosodie-Daten (Pitch, Tempo) extrahieren
+### 2.2 Zentrale Regeln
+- **Keine Zahlen nennen** (keine Scores/Prozente/TTR etc.). Zahlen sind interne Hinweise.
+- **Max. 2 Fokus-Punkte** unter „Fokus fürs nächste Mal“.
+- **Zitiere kurz** aus dem Transkript, um Beobachtungen zu belegen.
+- Priorisiere: lieber 1–2 starke Hebel als „alles korrigieren“.
 
 ---
 
-## Schnellstart: Lokale Entwicklung
+## 3) Input-Contract (coach_input) – Schema (v1)
 
-```bash
-# Repo klonen / updaten
-cd /pfad/zu/Kleiner-Baer
-git pull origin main
+### 3.1 Top-Level Keys
 
-# Virtuelle Umgebung (falls nicht vorhanden)
-python -m venv venv
-source venv/bin/activate  # oder venv\Scripts\activate auf Windows
+- `user`: Identifikation
+- `pretest`: Selbsteinschätzung + Profil + MASQ
+- `task_metadata`: Task-Kontext (Situation, Zielregister, Zeitlimit …)
+- `session_metadata`: Session-Infos (mode, duration …)
+- `learner_planning`: Lernziel & Kontext (User-Text)
+- `transcript`: Transkript (String)
+- `analysis`: Analyse-Container (Layer 1/2 + CEFR + KPIs + Hotspots)
+- `reflection`: Reflexionstext + Timestamp
 
-# Dependencies
-pip install -r requirements.txt
-python -m spacy download de_core_news_lg
+### 3.2 Detail: `analysis`
 
-# Streamlit starten
-streamlit run app.py
+- `layer1_deterministic`: `metrics_summary` (aus Kleiner Bär)
+- `layer2_azure`: aktuell `None` (Azure ist geplant)
+- `cefr`: `{score, label}`
+- `home_kpis`: `disce_metrics`
+- `hotspots`: Liste annotierter Sätze
 
-# Generated Docs aktualisieren
-python generate_docs.py
-```
-
----
-
-## Kontakt / Fragen
-
-Bei Unklarheiten:
-1. Prüfe `docs/architecture.md` für Systemverständnis
-2. Prüfe `docs/generated/modules.md` für Code-Struktur
-3. Frage den Maintainer
+### 3.3 Empfehlungen für Contract-Stabilität (Engineering)
+- `schema_version` ergänzen (z.B. `"coach_input/v1"`)
+- Breaking Changes vermeiden (lieber neue Keys additiv hinzufügen)
 
 ---
 
-*Zuletzt aktualisiert: 2026-01-24*
+## 4) Pretest Contract
+
+### 4.1 `pretest.self_assessment`
+- `cefr_overall`
+- `cefr_speaking`
+- `has_official_cert`
+- `official_cert_type`
+
+### 4.2 `pretest.learner_profile`
+- `learning_duration_months`
+- `learning_context` (Liste)
+- `native_language`
+- `other_languages`
+
+### 4.3 `pretest.masq`
+MASQ wird als strukturiertes Objekt übergeben (inkl. `factors`, `total`, `level`, `level_label`).
+
+---
+
+## 5) Kleiner Bär: `metrics_summary` (Inhalt)
+
+`metrics_summary` ist ein **stabiler Sub-Contract**: Er wird in `disce_core.build_metrics_summary(...)` gebaut und in `analyze_text_for_llm()` durchgereicht.
+
+**Wichtig:**
+- Der Coach bekommt hier typischerweise viele numerische Signale.
+- Im Output dürfen diese Zahlen nicht erscheinen (nur qualitative Übersetzung).
+
+Wenn du `metrics_summary` erweitern willst:
+- Änderungen in `disce_core.build_metrics_summary(...)` machen,
+- anschließend `analyze_text_for_llm()` weiter stabil halten.
+
+---
+
+## 6) Hotspots Contract
+
+`hotspots` ist eine Liste von annotierten Satz-Objekten (kein reines String-Array).
+
+Wenn du das Schema ändern willst, ändere konsistent:
+- `disce_core.select_hotspots(...)`
+- alle Consumer (UI/LLM/logging)
+
+---
+
+## 7) Task Templates (Großer Bär)
+
+Tasks sind in `grosser_baer/task_templates.py` definiert.
+
+Typische Felder:
+- `id`, `title`, `context`, `cefr_target`, `situation`, `task`, `time_seconds`, `evaluation_focus`, `register`, `example_phrases`, `meta_prompts`.
+
+### Known issue (bitte vor Änderungen beachten)
+In der UI werden teils Task-Feldnamen wie `level` erwartet, während Templates z.B. `cefr_target` nutzen.
+
+Empfehlung: Vor größeren Änderungen Feldnamen harmonisieren, sonst entstehen leise `None`-Werte im `coach_input`.
+
+---
+
+## 8) Modi (run modes)
+
+Im UI gibt es (mindestens) diese Modes:
+- `mock_speaking`
+- `speaking`
+
+Der Mode fließt in `coach_input.session_metadata.mode` und wird auch als Kontext an `analyze_text_for_llm()` übergeben.
+
+---
+
+## 9) Logging / Persistenz (Make → Airtable)
+
+Die UI kann Session-Daten über einen Make Webhook senden (flacher Payload).
+
+Im Payload sind u.a. enthalten:
+- Task-Metadaten, Transcript, Reflection
+- CEFR-Label/Score
+- `disce_metrics` als JSON
+- Pretest-Felder inkl. MASQ-Factor-Means
+
+Airtable kann per Config deaktiviert sein; dann wird das Senden übersprungen.
+
+---
+
+## 10) Für LLMs: Do’s / Don’ts im Repo
+
+### ✅ Do
+- Arbeite entlang des kanonischen Contracts (`coach_input`, `analyze_text_for_llm`).
+- Halte Änderungen additiv/backwards-compatible (neue Keys statt bestehende umzubenennen), außer du machst einen bewussten Breaking Change.
+- Nach strukturellen Änderungen: `python generate_docs.py` laufen lassen und `docs/generated/*` committen.
+
+### ❌ Don’t
+- Keine unkoordinierten Änderungen am `coach_input` Schema (das ist euer API-Contract).
+- Keine Vermischung von „interne Metriken“ und „User-facing Feedback“: Output soll qualitativ sein.
+
+---
+
+## 11) Geplante Erweiterung: Azure (Layer 2)
+
+Azure ist als nächster Schritt geplant, um Prosodie/Pronunciation tiefer auszuwerten.
+
+Ziel: `coach_input["analysis"]["layer2_azure"]` wird von `None` zu einem strukturierten Objekt.
+
+Empfehlung: Sobald Azure ergänzt wird, bitte auch:
+- `schema_version` im `coach_input` einführen,
+- klare Subschemas (z.B. `pronunciation`, `prosody`, `word_level`).
+
+---
+
+*Zuletzt aktualisiert: 2026-01-27*
