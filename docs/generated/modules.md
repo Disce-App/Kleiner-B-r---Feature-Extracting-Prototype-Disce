@@ -1,6 +1,6 @@
 # Module Reference
 
-> Automatisch generiert am 2026-01-24 14:06
+> Automatisch generiert am 2026-01-27 08:53
 
 ## 📁 (root)
 
@@ -123,12 +123,12 @@
 ---
 
 ### `openai_services.py`
-*148 Zeilen*
+*111 Zeilen*
 > OpenAI-Integration für Großer Bär
 
 **Funktionen:** `get_openai_client()`, `transcribe_audio()`, `generate_coach_feedback()`, `check_api_connection()`
 
-**Key Imports:** openai, streamlit, tempfile
+**Key Imports:** grosser_baer, openai, streamlit, tempfile
 
 ---
 
@@ -213,7 +213,7 @@
 ---
 
 ### `grosser_baer\prompts.py`
-*234 Zeilen*
+*261 Zeilen*
 > Prompt-Architektur für Großer Bär.
 
 **Funktionen:** `get_meta_prompt()`, `build_feedback_prompt()`, `get_phase_ui()`
@@ -234,7 +234,7 @@
 ---
 
 ### `grosser_baer\task_templates.py`
-*182 Zeilen*
+*106 Zeilen*
 > Berufliche Speaking-Szenarien für Großer Bär.
 
 **Funktionen:** `get_task()`, `get_all_tasks()`, `get_tasks_by_context()`, `get_task_choices()`
@@ -244,17 +244,20 @@
 ## 📁 pages
 
 ### `pages\admin.py`
-*1181 Zeilen*
+*1286 Zeilen*
 > 🛠️ Admin Dashboard für Großer Bär
 
-**Funktionen:** `check_admin_auth()`, `render_json_with_schema()`, `get_data_hint()`, `get_all_jsons()`, `render_admin_dashboard()`
+**Klassen:**
+- `MockFeedback` → __init__
+
+**Funktionen:** `apply_screen_state()`, `check_admin_auth()`, `render_json_with_schema()`, `get_data_hint()`, `get_all_jsons()`, `render_admin_dashboard()`
 
 **Key Imports:** config, grosser_baer, random, streamlit, uuid
 
 ---
 
 ### `pages\grosser_baer.py`
-*1258 Zeilen*
+*1363 Zeilen*
 > Großer Bär – Speaking Coach UI
 
 **Klassen:**

@@ -1,6 +1,6 @@
 # Repo Map
 
-> Automatisch generiert am 2026-01-24 14:06
+> Automatisch generiert am 2026-01-27 08:53
 > Root: `Kleiner-B-r---Feature-Extracting-Prototype-Disce/`
 
 ## Struktur
@@ -8,6 +8,8 @@
 ```
 ├── 📁 .devcontainer/
 │   └── 📄 devcontainer.json
+├── 📁 .streamlit/
+│   └── 📄 config.toml
 ├── 📁 config/
 │   ├── 🐍 app_config.py
 │   ├── 📄 pretest_config.json
@@ -53,5 +55,5 @@
 ## Stats
 
 - **Python-Dateien:** 25
-- **Gesamte Zeilen (Python):** 4,611
-- **Durchschnitt pro Datei:** 184 Zeilen
+- **Gesamte Zeilen (Python):** 4,828
+- **Durchschnitt pro Datei:** 193 Zeilen

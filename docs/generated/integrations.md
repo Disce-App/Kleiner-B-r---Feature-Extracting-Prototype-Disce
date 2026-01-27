@@ -1,6 +1,6 @@
 # Integrations
 
-> Automatisch generiert am 2026-01-24 14:06
+> Automatisch generiert am 2026-01-27 08:53
 
 Diese Datei listet externe Services/Libraries, die im Code referenziert werden.
 
@@ -67,7 +67,7 @@ Gefunden in 4 Datei(en):
 
 ## Streamlit
 
-Gefunden in 11 Datei(en):
+Gefunden in 10 Datei(en):
 
 - `app.py`
 - `bonsai_lsystem.py`
@@ -76,10 +76,9 @@ Gefunden in 11 Datei(en):
 - `config\pretest_loader.py`
 - `generate_docs.py`
 - `grosser_baer\audio_handler.py`
-- `grosser_baer\task_templates.py`
 - `openai_services.py`
 - `pages\admin.py`
-- ... und 1 weitere
+- `pages\grosser_baer.py`
 
 ## Whisper
 
