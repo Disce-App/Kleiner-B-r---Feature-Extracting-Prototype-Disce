@@ -1,0 +1,220 @@
+# Gamma-Inventur — Research-Framework
+
+## Zweck
+
+Systematische Bestandsaufnahme aller verfügbaren Open-Source-Bausteine (Modelle, Libraries, Korpora, Tools), die für die **German-Disce-Speech-Suite** relevant sind.
+
+**Prinzip:** Erst alles auf den Tisch legen (Gamma), dann komponieren (Beta), dann das Produkt definieren (Alpha).
+
+---
+
+## Steckbrief-Schema (pro Baustein)
+
+Jeder identifizierte Baustein wird nach diesem Schema erfasst:
+
+| Dimension              | Leitfrage                                                                 |
+|------------------------|---------------------------------------------------------------------------|
+| **Name & Typ**         | Was ist es? (Modell / Library / Korpus / Pipeline / Toolkit)              |
+| **Quelle**             | Wer steckt dahinter? (Organisation, Repo-URL, Lizenz)                    |
+| **Deutsch-Tauglichkeit** | Wie gut funktioniert es für Deutsch? Gibt es de-DE-spezifische Varianten? |
+| **Lerner-Tauglichkeit**  | Wurde es auf L2-Speech / akzentbehaftete / fehlerhafte Sprache getestet?  |
+| **Granularität**       | Welches Auflösungsniveau? (Satz / Wort / Phonem / Frame / Feature)        |
+| **Output-Format**      | Was kommt raus? (Text, Alignment, Score, Embedding, Annotation, …)        |
+| **Integration**        | Wie einbettbar? (Python-API, CLI, ONNX, HuggingFace, REST, …)            |
+| **Compute**            | Ressourcenbedarf? (GPU-Typ, VRAM, Latenz, Edge-/CPU-fähig?)              |
+| **Reife**              | Produktionsreife? (Research-Prototype / Beta / Production-Grade)          |
+| **Limitationen**       | Was kann es explizit *nicht*?                                             |
+
+---
+
+## Domänen-Übersicht
+
+| #   | Domäne                              | Gamma-Kernfrage                                                              | Status     |
+|-----|-------------------------------------|------------------------------------------------------------------------------|------------|
+| ①   | Transkription & Erkennung           | Welche ASR-Modelle taugen für deutsches Lerner-Audio?                        | ◻ Offen    |
+| ②   | Phonetisches Alignment              | Welche Forced-Alignment-Tools liefern Phonem-Grenzen für Deutsch?            | ◻ Offen    |
+| ③   | Aussprache-Bewertung                | Welche Scoring-Ansätze (GOP, wav2vec, …) existieren für Deutsch?             | ◻ Offen    |
+| ④   | Prosodie & Suprasegmentalia         | Welche Tools extrahieren Pitch, Rhythmus, Betonung, Pausen?                 | ◻ Offen    |
+| ⑤   | Textbasierte Diagnostik (CAF+)      | Welche NLP-Tools analysieren deutsche Grammatik, Lexik, Komplexität?         | ◻ Offen    |
+| ⑥   | Diagnostisches Scoring & CEFR       | Welche Modelle/Datensätze mappen Sprachmerkmale auf CEFR-Stufen?             | ◻ Offen    |
+| ⑦   | Generatives Coaching & Feedback     | Welche LLMs/Architekturen erzeugen didaktisches Feedback für Deutsch?        | ◻ Offen    |
+
+---
+
+## Arbeitsablauf pro Domäne
+
+```
+1. SAMMELN      Alle relevanten Bausteine identifizieren (breite Suche)
+2. STECKBRIEF   Jeden Baustein nach Schema oben erfassen
+3. LÜCKEN       Was fehlt für unseren Use Case? Was gibt es für EN, aber nicht für DE?
+4. NOTIZ        Kombinatorik-Hinweise für Beta (nur Stichworte, kein Design)
+5. VERDICT      Welche Bausteine kommen in die engere Wahl — und warum?
+```
+
+---
+
+## Zusätzliche Erfassungsdimensionen (pro Domäne, nicht pro Baustein)
+
+### Landkarte
+> Welche Bausteine existieren insgesamt in dieser Domäne? (Vollständigkeitsanspruch)
+
+### Lücken
+> Was fehlt — insbesondere: was existiert für Englisch, aber nicht (oder kaum) für Deutsch?
+> Was existiert für Muttersprachler, aber nicht für Lerner?
+
+### Kombinatorik-Notiz (Vorgriff auf Beta)
+> Welche Bausteine sind natürliche Paare oder Pipeline-Nachbarn?
+> (Nur Stichworte — Beta-Design kommt später)
+
+---
+
+## Domänen-Detail-Sektionen
+
+Jede Domäne bekommt eine eigene Sektion nach folgendem Template:
+
+---
+
+### Domäne ① — Transkription & Erkennung
+
+**Gamma-Kernfrage:** Welche ASR-Modelle taugen für deutsches Lerner-Audio?
+
+#### Bausteine
+
+*(Steckbriefe hier einfügen)*
+
+#### Landkarte
+
+*(Überblick: was existiert insgesamt)*
+
+#### Lücken
+
+*(Was fehlt für DE / für Lerner?)*
+
+#### Kombinatorik-Notiz
+
+*(Stichworte für Beta)*
+
+#### Verdict
+
+*(Engere Wahl + Begründung)*
+
+---
+
+### Domäne ② — Phonetisches Alignment
+
+**Gamma-Kernfrage:** Welche Forced-Alignment-Tools liefern Phonem-Grenzen für Deutsch?
+
+#### Bausteine
+
+#### Landkarte
+
+#### Lücken
+
+#### Kombinatorik-Notiz
+
+#### Verdict
+
+---
+
+### Domäne ③ — Aussprache-Bewertung
+
+**Gamma-Kernfrage:** Welche Scoring-Ansätze (GOP, wav2vec, …) existieren für Deutsch?
+
+#### Bausteine
+
+#### Landkarte
+
+#### Lücken
+
+#### Kombinatorik-Notiz
+
+#### Verdict
+
+---
+
+### Domäne ④ — Prosodie & Suprasegmentalia
+
+**Gamma-Kernfrage:** Welche Tools extrahieren Pitch, Rhythmus, Betonung, Pausen?
+
+#### Bausteine
+
+#### Landkarte
+
+#### Lücken
+
+#### Kombinatorik-Notiz
+
+#### Verdict
+
+---
+
+### Domäne ⑤ — Textbasierte Diagnostik (CAF+)
+
+**Gamma-Kernfrage:** Welche NLP-Tools analysieren deutsche Grammatik, Lexik, Komplexität?
+
+#### Bausteine
+
+#### Landkarte
+
+#### Lücken
+
+#### Kombinatorik-Notiz
+
+#### Verdict
+
+---
+
+### Domäne ⑥ — Diagnostisches Scoring & CEFR
+
+**Gamma-Kernfrage:** Welche Modelle/Datensätze mappen Sprachmerkmale auf CEFR-Stufen?
+
+#### Bausteine
+
+#### Landkarte
+
+#### Lücken
+
+#### Kombinatorik-Notiz
+
+#### Verdict
+
+---
+
+### Domäne ⑦ — Generatives Coaching & Feedback
+
+**Gamma-Kernfrage:** Welche LLMs/Architekturen erzeugen didaktisches Feedback für Deutsch?
+
+#### Bausteine
+
+#### Landkarte
+
+#### Lücken
+
+#### Kombinatorik-Notiz
+
+#### Verdict
+
+---
+
+## Glossar
+
+| Kürzel | Bedeutung |
+|--------|-----------|
+| ASR    | Automatic Speech Recognition |
+| MFA    | Montreal Forced Aligner |
+| GOP    | Goodness of Pronunciation |
+| CAF    | Complexity, Accuracy, Fluency |
+| CEFR   | Common European Framework of Reference for Languages |
+| TTR    | Type-Token Ratio |
+| L2     | Zweit-/Fremdsprache (Lerner-Perspektive) |
+| STT    | Speech-to-Text |
+| TTS    | Text-to-Speech |
+| SOOFI  | (Disce-interner Name) Eigenes europäisches LLM |
+
+---
+
+*Zuletzt aktualisiert: ____-__-__*
+*Bearbeiter: ________________*
+*Version: 0.1*
+
+Bereit.
