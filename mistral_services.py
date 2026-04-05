@@ -56,13 +56,10 @@ def transcribe_audio(audio_bytes: bytes) -> str:
         messages=[
             {
                 "role": "user",
-                "content": [
+                "content": [ 
                     {
                         "type": "input_audio",
-                        "input_audio": {
-                            "data": audio_b64,
-                            "format": "wav",
-                        },
+                        "input_audio": audio_b64,
                     },
                     {
                         "type": "text",
