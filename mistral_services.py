@@ -21,7 +21,7 @@ from grosser_baer.prompts import SYSTEM_PROMPT_COACH
 # ---------------------------------------------------------------------------
 # Config – Modelle zentral definiert, leicht austauschbar
 # ---------------------------------------------------------------------------
-TRANSCRIPTION_MODEL = "mistral-audio-latest"   # Voxtral (Audio → Text)
+TRANSCRIPTION_MODEL = "voxtral-small-latest"   # Voxtral (Audio → Text)
 CHAT_MODEL = "mistral-small-latest"            # Mistral Small (günstig & schnell)
 
 
