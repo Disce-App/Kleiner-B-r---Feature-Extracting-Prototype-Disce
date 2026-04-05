@@ -1,7 +1,7 @@
 # mistral_services.py
 """
 Mistral-Integration für Großer Bär
-- Voxtral: Audio → Transkript
+- Voxtral: Audio → Transkript (via input_audio chunk, mistralai v2.x)
 - Mistral Small: Coach-Feedback
 
 Ersetzt openai_services.py – Function-Signaturen bleiben identisch,
@@ -9,9 +9,7 @@ damit pages/grosser_baer.py ohne Änderung funktioniert.
 """
 
 import json
-import tempfile
 import base64
-from pathlib import Path
 
 import streamlit as st
 from mistralai.client.sdk import Mistral
@@ -23,7 +21,7 @@ from grosser_baer.prompts import SYSTEM_PROMPT_COACH
 # ---------------------------------------------------------------------------
 # Config – Modelle zentral definiert, leicht austauschbar
 # ---------------------------------------------------------------------------
-TRANSCRIPTION_MODEL = "mistral-audio-latest"   # Voxtral Transcription
+TRANSCRIPTION_MODEL = "mistral-audio-latest"   # Voxtral (Audio → Text)
 CHAT_MODEL = "mistral-small-latest"            # Mistral Small (günstig & schnell)
 
 
@@ -37,7 +35,10 @@ def get_mistral_client() -> Mistral:
 
 def transcribe_audio(audio_bytes: bytes) -> str:
     """
-    Transkribiert Audio mit Voxtral.
+    Transkribiert Audio mit Voxtral über die Chat-Completions API.
+
+    Nutzt den 'input_audio' Chunk-Type (korrekt für mistralai v2.x).
+    Kein data-URI Prefix – nur roher base64-String.
 
     Args:
         audio_bytes: Audio-Daten als Bytes (WAV format)
@@ -47,9 +48,8 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     """
     client = get_mistral_client()
 
-    # Voxtral erwartet Base64-encoded Audio als Data-URI
+    # Roher base64-String – KEIN "data:audio/wav;base64," Prefix
     audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-    data_uri = f"data:audio/wav;base64,{audio_b64}"
 
     response = client.chat.complete(
         model=TRANSCRIPTION_MODEL,
@@ -58,8 +58,11 @@ def transcribe_audio(audio_bytes: bytes) -> str:
                 "role": "user",
                 "content": [
                     {
-                        "type": "audio_url",
-                        "audio_url": data_uri,
+                        "type": "input_audio",
+                        "input_audio": {
+                            "data": audio_b64,
+                            "format": "wav",
+                        },
                     },
                     {
                         "type": "text",
@@ -115,10 +118,10 @@ def generate_coach_feedback(coach_input: dict) -> str:
 
 def check_api_connection() -> tuple[bool, str]:
     """
-    Testet die Mistral API-Verbindung.
+    Testet die Mistral API-Verbindung mit einem Mini-Chat-Call.
 
     Returns:
-        (success, message)
+        (success: bool, message: str)
     """
     try:
         client = get_mistral_client()
