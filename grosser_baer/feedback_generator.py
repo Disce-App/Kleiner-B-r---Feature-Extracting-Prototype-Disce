@@ -1,10 +1,10 @@
 # grosser_baer/feedback_generator.py
 """
-Feedback-Generierung für Großer Bär.
-Orchestriert Kleiner Bär Analyse + Claude Narratives Feedback.
+Feedback-Generierung fuer Grosser Baer.
+Orchestriert Kleiner Baer Analyse + Mistral Narratives Feedback.
 
 Pipeline:
-    Transkript → Kleiner Bär (Metriken) → Prompt Builder → Claude → Narratives Feedback
+    Transkript -> Kleiner Baer (Metriken) -> Prompt Builder -> Mistral -> Narratives Feedback
 """
 
 import os
@@ -27,22 +27,22 @@ from .audio_handler import AudioAnalysisResult, ProsodyResult
 
 @dataclass
 class FeedbackResult:
-    """Vollständiges Feedback-Ergebnis."""
+    """Vollstaendiges Feedback-Ergebnis."""
     
-    # Narratives Feedback (von Claude)
+    # Narratives Feedback (von Mistral)
     narrative: str
     
-    # Metriken (von Kleiner Bär)
+    # Metriken (von Kleiner Baer)
     metrics: dict = field(default_factory=dict)
     
-    # CEFR-Einschätzung
+    # CEFR-Einschaetzung
     cefr_score: float | None = None
     cefr_label: str | None = None
     
-    # Hotspots für gezielte Übungen
+    # Hotspots fuer gezielte Uebungen
     hotspots: list = field(default_factory=list)
     
-    # Disce-Metriken für Dashboard
+    # Disce-Metriken fuer Dashboard
     disce_metrics: dict = field(default_factory=dict)
     
     # Meta
@@ -54,7 +54,7 @@ class FeedbackResult:
     processing_time_seconds: float | None = None
     
     def to_dict(self) -> dict:
-        """Für Session-Logger."""
+        """Fuer Session-Logger."""
         return {
             "narrative": self.narrative,
             "metrics": self.metrics,
@@ -71,23 +71,21 @@ class FeedbackResult:
 
 
 # =============================================================================
-# KLEINER BÄR INTEGRATION
+# KLEINER BAER INTEGRATION
 # =============================================================================
 
 def analyze_with_kleiner_baer(text: str, context: dict | None = None) -> dict:
     """
-    Wrapper für disce_core.analyze_text_for_llm().
-    Importiert dynamisch um zirkuläre Imports zu vermeiden.
+    Wrapper fuer disce_core.analyze_text_for_llm().
+    Importiert dynamisch um zirkulaere Imports zu vermeiden.
     
     Returns:
         Dict mit: metrics_summary, cefr, hotspots, disce_metrics
     """
     try:
-        # Import aus dem Hauptverzeichnis
         import sys
         from pathlib import Path
         
-        # Füge Parent-Verzeichnis zum Path (falls nötig)
         parent_dir = Path(__file__).parent.parent
         if str(parent_dir) not in sys.path:
             sys.path.insert(0, str(parent_dir))
@@ -97,15 +95,14 @@ def analyze_with_kleiner_baer(text: str, context: dict | None = None) -> dict:
         return analyze_text_for_llm(text, context or {})
         
     except ImportError as e:
-        # Fallback: Minimal-Analyse wenn disce_core nicht verfügbar
-        print(f"Warning: disce_core nicht verfügbar: {e}")
+        print(f"Warning: disce_core nicht verfuegbar: {e}")
         return _mock_kleiner_baer_analysis(text)
 
 
 def _mock_kleiner_baer_analysis(text: str) -> dict:
     """
     Fallback-Analyse wenn disce_core nicht importierbar.
-    Für isoliertes Testing des grosser_baer Moduls.
+    Fuer isoliertes Testing des grosser_baer Moduls.
     """
     word_count = len(text.split())
     sentence_count = text.count('.') + text.count('!') + text.count('?')
@@ -142,75 +139,78 @@ def _mock_kleiner_baer_analysis(text: str) -> dict:
 
 
 # =============================================================================
-# CLAUDE API INTEGRATION
+# MISTRAL API INTEGRATION
 # =============================================================================
 
-def get_anthropic_client():
+NARRATIVE_MODEL = "mistral-small-latest"
+
+
+def get_mistral_client():
     """
-    Erstellt Anthropic Client wenn API-Key vorhanden.
+    Erstellt Mistral Client wenn API-Key vorhanden.
     Returns None wenn nicht konfiguriert.
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("MISTRAL_API_KEY")
     
     if not api_key:
         return None
     
     try:
-        from anthropic import Anthropic
-        return Anthropic(api_key=api_key)
+        from mistralai import Mistral
+        return Mistral(api_key=api_key)
     except ImportError:
         raise ImportError(
-            "anthropic nicht installiert. "
-            "Führe aus: pip install anthropic"
+            "mistralai nicht installiert. "
+            "Bitte installieren mit: pip install mistralai"
         )
 
 
-def generate_narrative_with_claude(
+def generate_narrative_with_mistral(
     prompt: str,
     system_prompt: str = SYSTEM_PROMPT_COACH,
-    model: str = "claude-sonnet-4-20250514",
+    model: str = NARRATIVE_MODEL,
     max_tokens: int = 1024,
     temperature: float = 0.7,
 ) -> tuple[str, dict]:
     """
-    Generiert narratives Feedback mit Claude.
+    Generiert narratives Feedback mit Mistral.
     
     Args:
         prompt: Der formatierte Feedback-Prompt
-        system_prompt: System-Prompt für Claude
-        model: Claude-Modell
-        max_tokens: Maximale Antwortlänge
-        temperature: Kreativität (0-1)
+        system_prompt: System-Prompt fuer Mistral
+        model: Mistral-Modell
+        max_tokens: Maximale Antwortlaenge
+        temperature: Kreativitaet (0-1)
         
     Returns:
         Tuple von (feedback_text, usage_dict)
     """
-    client = get_anthropic_client()
+    client = get_mistral_client()
     
     if not client:
         raise RuntimeError(
-            "Anthropic API nicht konfiguriert. "
-            "Setze ANTHROPIC_API_KEY Umgebungsvariable."
+            "Mistral API nicht konfiguriert. "
+            "Setze MISTRAL_API_KEY Umgebungsvariable."
         )
     
-    response = client.messages.create(
+    response = client.chat.complete(
         model=model,
         max_tokens=max_tokens,
         temperature=temperature,
-        system=system_prompt,
         messages=[
-            {"role": "user", "content": prompt}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
         ]
     )
     
     # Extrahiere Text
-    feedback_text = response.content[0].text
+    feedback_text = response.choices[0].message.content
     
     # Usage-Statistiken
     usage = {
         "model": model,
-        "prompt_tokens": response.usage.input_tokens,
-        "completion_tokens": response.usage.output_tokens,
+        "prompt_tokens": response.usage.prompt_tokens,
+        "completion_tokens": response.usage.completion_tokens,
     }
     
     return feedback_text, usage
@@ -221,7 +221,7 @@ def generate_mock_narrative(
     task_id: str | None = None
 ) -> tuple[str, dict]:
     """
-    Mock-Feedback für Testing ohne Claude API.
+    Mock-Feedback fuer Testing ohne Mistral API.
     
     Returns:
         Tuple von (feedback_text, usage_dict)
@@ -245,7 +245,7 @@ class FeedbackGenerator:
         generator = FeedbackGenerator(use_mock=True)
         
         result = generator.generate(
-            transcript="Ich möchte kurz zusammenfassen...",
+            transcript="Ich moechte kurz zusammenfassen...",
             task=get_task("meeting_update"),
             prosody=prosody_result
         )
@@ -257,21 +257,21 @@ class FeedbackGenerator:
     def __init__(
         self,
         use_mock: bool | None = None,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = NARRATIVE_MODEL,
         temperature: float = 0.7,
     ):
         """
         Args:
-            use_mock: True = immer Mock, False = immer Claude, None = Auto
-            model: Claude-Modell für Feedback
-            temperature: Kreativität der Antworten
+            use_mock: True = immer Mock, False = immer Mistral, None = Auto
+            model: Mistral-Modell fuer Feedback
+            temperature: Kreativitaet der Antworten
         """
         self.model = model
         self.temperature = temperature
         
         # Auto-detect Mock-Modus
         if use_mock is None:
-            self.use_mock = get_anthropic_client() is None
+            self.use_mock = get_mistral_client() is None
         else:
             self.use_mock = use_mock
     
@@ -283,20 +283,20 @@ class FeedbackGenerator:
         context: dict | None = None,
     ) -> FeedbackResult:
         """
-        Generiert vollständiges Feedback für eine Speaking-Aufnahme.
+        Generiert vollstaendiges Feedback fuer eine Speaking-Aufnahme.
         
         Args:
             transcript: STT-Transkript des gesprochenen Texts
             task: Task-Template aus task_templates.py
             prosody: Prosodie-Daten (optional)
-            context: Zusätzlicher Kontext für Analyse
+            context: Zusaetzlicher Kontext fuer Analyse
             
         Returns:
             FeedbackResult mit Narrativ, Metriken, CEFR, Hotspots
         """
         start_time = datetime.now()
         
-        # 1. Kleiner Bär Analyse
+        # 1. Kleiner Baer Analyse
         analysis = analyze_with_kleiner_baer(transcript, context)
         
         # 2. Prosodie-Dict vorbereiten
@@ -322,7 +322,7 @@ class FeedbackGenerator:
                 task_id=task.get("id")
             )
         else:
-            narrative, usage = generate_narrative_with_claude(
+            narrative, usage = generate_narrative_with_mistral(
                 prompt=prompt,
                 model=self.model,
                 temperature=self.temperature
@@ -344,29 +344,7 @@ class FeedbackGenerator:
             prompt_tokens=usage.get("prompt_tokens"),
             completion_tokens=usage.get("completion_tokens"),
             is_mock=self.use_mock,
-            processing_time_seconds=processing_time
-        )
-    
-    def generate_from_audio_result(
-        self,
-        audio_result: AudioAnalysisResult,
-        task: dict,
-        context: dict | None = None,
-    ) -> FeedbackResult:
-        """
-        Convenience-Methode: Generiert Feedback direkt aus AudioAnalysisResult.
-        
-        Usage:
-            from grosser_baer.audio_handler import process_speaking_task
-            
-            audio_result = process_speaking_task(audio_bytes, task_id="meeting_update")
-            feedback = generator.generate_from_audio_result(audio_result, task)
-        """
-        return self.generate(
-            transcript=audio_result.transcript.text,
-            task=task,
-            prosody=audio_result.prosody,
-            context=context
+            processing_time_seconds=processing_time,
         )
 
 
@@ -378,67 +356,41 @@ def generate_feedback(
     transcript: str,
     task: dict,
     prosody: ProsodyResult | dict | None = None,
+    context: dict | None = None,
     use_mock: bool | None = None,
 ) -> FeedbackResult:
     """
-    High-Level-Funktion für schnelle Feedback-Generierung.
+    Convenience-Funktion: Generiert Feedback in einem Aufruf.
     
-    Args:
-        transcript: Der gesprochene Text
-        task: Task-Template
-        prosody: Prosodie-Daten (optional)
-        use_mock: Mock-Modus erzwingen
-        
-    Returns:
-        FeedbackResult
-        
     Usage:
-        from grosser_baer.task_templates import get_task
-        from grosser_baer.feedback_generator import generate_feedback
-        
-        task = get_task("meeting_update")
         result = generate_feedback(
-            transcript="Ich möchte den aktuellen Stand zusammenfassen...",
-            task=task,
+            transcript="Guten Tag, ich moechte...",
+            task=get_task("meeting_update"),
+            prosody=prosody_result,
             use_mock=True
         )
-        
-        print(result.narrative)
     """
     generator = FeedbackGenerator(use_mock=use_mock)
-    return generator.generate(transcript, task, prosody)
+    return generator.generate(
+        transcript=transcript,
+        task=task,
+        prosody=prosody,
+        context=context
+    )
 
-
-def quick_analyze(text: str) -> dict:
-    """
-    Schnelle Kleiner-Bär-Analyse ohne Feedback-Generierung.
-    Nützlich für Testing und Debugging.
-    
-    Returns:
-        Dict mit CEFR, Dims, Hotspots
-    """
-    return analyze_with_kleiner_baer(text)
-
-
-# =============================================================================
-# BATCH PROCESSING (für Admin/Forschung)
-# =============================================================================
 
 def batch_generate_feedback(
     items: list[dict],
     use_mock: bool = True,
-    progress_callback: Callable[[int, int], None] | None = None,
+    progress_callback: Callable | None = None,
 ) -> list[FeedbackResult]:
     """
-    Generiert Feedback für mehrere Sessions.
+    Batch-Feedback fuer mehrere Aufnahmen.
     
     Args:
-        items: Liste von Dicts mit {transcript, task, prosody}
-        use_mock: Mock-Modus (empfohlen für Batch)
-        progress_callback: Wird mit (current, total) aufgerufen
-        
-    Returns:
-        Liste von FeedbackResults
+        items: Liste von Dicts mit keys: transcript, task, prosody (optional)
+        use_mock: Mock-Modus fuer Testing
+        progress_callback: Optional callback(current, total)
         
     Usage:
         items = [
@@ -468,33 +420,33 @@ def batch_generate_feedback(
 
 
 # =============================================================================
-# FEEDBACK FORMATTER (für verschiedene Output-Formate)
+# FEEDBACK FORMATTER (fuer verschiedene Output-Formate)
 # =============================================================================
 
 def format_feedback_markdown(result: FeedbackResult) -> str:
     """
-    Formatiert Feedback als Markdown für Streamlit.
+    Formatiert Feedback als Markdown fuer Streamlit.
     """
     lines = [
-        f"## Feedback",
-        f"",
+        "## Feedback",
+        "",
         f"**CEFR-Niveau:** {result.cefr_label} (Score: {result.cefr_score:.1f})" if result.cefr_score else "",
-        f"",
+        "",
         result.narrative,
     ]
     
-    # Hotspots hinzufügen wenn vorhanden
+    # Hotspots hinzufuegen wenn vorhanden
     if result.hotspots:
         lines.extend([
             "",
             "---",
-            "### 🔍 Interessante Stellen",
+            "### Interessante Stellen",
             ""
         ])
         for i, hotspot in enumerate(result.hotspots[:3], 1):
             reasons = ", ".join(hotspot.get("reasons", []))
             text = hotspot.get("sentence_text", "")[:100]
-            lines.append(f"{i}. *\"{text}...\"* – {reasons}")
+            lines.append(f'{i}. *"{text}..."* - {reasons}')
     
     return "\n".join(lines)
 
@@ -502,7 +454,7 @@ def format_feedback_markdown(result: FeedbackResult) -> str:
 def format_feedback_json(result: FeedbackResult) -> dict:
     """
     Formatiert Feedback als JSON-kompatibles Dict.
-    Für API-Responses oder Export.
+    Fuer API-Responses oder Export.
     """
     return {
         "feedback": {
@@ -528,7 +480,7 @@ def format_feedback_json(result: FeedbackResult) -> dict:
 
 def format_feedback_plain(result: FeedbackResult) -> str:
     """
-    Formatiert Feedback als Plain Text (für Export/Email).
+    Formatiert Feedback als Plain Text (fuer Export/Email).
     Entfernt Markdown-Formatierung.
     """
     import re
@@ -537,9 +489,8 @@ def format_feedback_plain(result: FeedbackResult) -> str:
     
     # Markdown entfernen
     text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)  # Bold
-    text = re.sub(r'\*(.+?)\*', r'\1', text)      # Italic
-    text = re.sub(r'###?\s*', '', text)           # Headers
-    text = re.sub(r'[✓→💡🔍]', '-', text)         # Emojis zu Dashes
+    text = re.sub(r'\*(.+?)\*', r'\1', text)        # Italic
+    text = re.sub(r'###?\s*', '', text)               # Headers
     
     header = f"CEFR-Niveau: {result.cefr_label}\n\n" if result.cefr_label else ""
     

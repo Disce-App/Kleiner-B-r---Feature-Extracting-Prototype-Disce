@@ -17,4 +17,4 @@ audio-recorder-streamlit
 anthropic
 
 requests
-openai
+mistralai

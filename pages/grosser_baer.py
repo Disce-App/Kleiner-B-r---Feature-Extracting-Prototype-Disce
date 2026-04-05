@@ -51,12 +51,12 @@ from config.app_config import (
     log_event,
 )
 
-# OpenAI Services (Whisper + GPT)
+# Mistral Services (Voxtral + Mistral Chat)
 try:
-    from openai_services import transcribe_audio, generate_coach_feedback, check_api_connection
-    OPENAI_AVAILABLE = True
+    from mistral_services import transcribe_audio, generate_coach_feedback, check_api_connection
+    MISTRAL_AVAILABLE = True
 except ImportError:
-    OPENAI_AVAILABLE = False
+    MISTRAL_AVAILABLE = False
 
 
 # =============================================================================
@@ -502,11 +502,11 @@ def send_session_to_airtable() -> tuple[bool, str]:
         return False, f"Fehler: {str(e)}"
 
 # =============================================================================
-# GPT FEEDBACK WRAPPER CLASS
+# MISTRAL FEEDBACK WRAPPER CLASS
 # =============================================================================
 
-class GPTFeedback:
-    """Wrapper-Klasse für GPT-generiertes Feedback."""
+class MistralFeedback:
+    """Wrapper-Klasse für Mistral-generiertes Feedback."""
     def __init__(self, text: str, cefr_data: dict):
         self.text = text
         self.cefr_label = cefr_data.get("label", "")
@@ -605,11 +605,11 @@ with st.sidebar:
 
     # API-Status anzeigen
     if not is_mock_mode():
-        if OPENAI_AVAILABLE:
-            st.success("✅ OpenAI API verfügbar")
+        if MISTRAL_AVAILABLE:
+            st.success("✅ Mistral API verfügbar")
         else:
-            st.error("❌ OpenAI API nicht verfügbar")
-            st.caption("Aktiviere Mock-Modus oder prüfe openai_services.py")
+            st.error("❌ Mistral API nicht verfügbar")
+            st.caption("Aktiviere Mock-Modus oder prüfe mistral_services.py")
 
     # NEU: Debug-Modus Toggle (nur für Entwickler)
     if is_debug_mode():
@@ -954,18 +954,18 @@ elif st.session_state.phase == "feedback":
 
             else:
                 # =============================================================
-                # ECHTER MODUS MIT OPENAI
+                # ECHTER MODUS MIT MISTRAL
                 # =============================================================
                 
-                # 1) Audio transkribieren mit Whisper (wenn Audio vorhanden)
-                if st.session_state.audio_bytes and OPENAI_AVAILABLE:
-                    with st.spinner("🎙️ Transkribiere Audio mit Whisper..."):
+                # 1) Audio transkribieren mit Voxtral (wenn Audio vorhanden)
+                if st.session_state.audio_bytes and MISTRAL_AVAILABLE:
+                    with st.spinner("🎙️ Transkribiere Audio mit Voxtral..."):
                         try:
                             transcript_text = transcribe_audio(st.session_state.audio_bytes)
-                            log_event("whisper", "Transkription erfolgreich", {"length": len(transcript_text)})
+                            log_event("voxtral", "Transkription erfolgreich", {"length": len(transcript_text)})
                         except Exception as e:
-                            st.error(f"❌ Whisper-Fehler: {str(e)}")
-                            log_error("whisper", str(e))
+                            st.error(f"❌ Voxtral-Fehler: {str(e)}")
+                            log_error("voxtral", str(e))
                             transcript_text = st.session_state.transcript or "Transkription fehlgeschlagen."
                 else:
                     # Fallback: Text aus Mock-Eingabe oder Platzhalter
@@ -1005,19 +1005,19 @@ elif st.session_state.phase == "feedback":
                 )
                 st.session_state.coach_input = coach_input
 
-                # 4) GPT-4o-mini Coaching-Feedback
-                if OPENAI_AVAILABLE:
-                    with st.spinner("🤖 Generiere Coaching-Feedback mit GPT..."):
+                # 4) Mistral Coaching-Feedback
+                if MISTRAL_AVAILABLE:
+                    with st.spinner("🤖 Generiere Coaching-Feedback mit Mistral..."):
                         try:
-                            gpt_feedback_text = generate_coach_feedback(coach_input)
-                            feedback = GPTFeedback(gpt_feedback_text, kb_result.get("cefr", {}))
+                            mistral_feedback_text = generate_coach_feedback(coach_input)
+                            feedback = MistralFeedback(mistral_feedback_text, kb_result.get("cefr", {}))
                             
                             # NEU: LLM-Call loggen
-                            log_llm_call("gpt_coach", coach_input, gpt_feedback_text)
+                            log_llm_call("mistral_coach", coach_input, mistral_feedback_text)
                             
                         except Exception as e:
-                            st.error(f"❌ GPT-Fehler: {str(e)}")
-                            log_error("gpt", str(e), {"coach_input_keys": list(coach_input.keys())})
+                            st.error(f"❌ Mistral-Fehler: {str(e)}")
+                            log_error("mistral", str(e), {"coach_input_keys": list(coach_input.keys())})
                             # Fallback auf Mock-Feedback
                             feedback = generate_feedback(
                                 transcript=transcript_text,
@@ -1026,8 +1026,8 @@ elif st.session_state.phase == "feedback":
                                 use_mock=True,
                             )
                 else:
-                    # OpenAI nicht verfügbar → Mock-Feedback
-                    st.warning("⚠️ OpenAI nicht verfügbar, nutze Mock-Feedback")
+                    # Mistral nicht verfügbar → Mock-Feedback
+                    st.warning("⚠️ Mistral nicht verfügbar, nutze Mock-Feedback")
                     feedback = generate_feedback(
                         transcript=transcript_text,
                         task=task,
@@ -1096,9 +1096,9 @@ elif st.session_state.phase == "feedback":
 
         st.markdown("---")
 
-        # Feedback anzeigen - unterscheide zwischen GPT und Mock
+        # Feedback anzeigen - unterscheide zwischen Mistral und Mock
         if hasattr(feedback, 'text'):
-            # GPT-Feedback (neues Format)
+            # Mistral-Feedback (neues Format)
             st.markdown(feedback.text)
         else:
             # Altes Mock-Format
@@ -1107,8 +1107,8 @@ elif st.session_state.phase == "feedback":
         # Hinweis zum Modus
         if hasattr(feedback, "is_mock") and feedback.is_mock:
             st.caption("ℹ️ Mock-Modus: Dies ist simuliertes Feedback für Testing.")
-        elif not is_mock_mode() and OPENAI_AVAILABLE:
-            st.caption("🤖 Feedback generiert mit GPT-4o-mini")
+        elif not is_mock_mode() and MISTRAL_AVAILABLE:
+            st.caption("🤖 Feedback generiert mit Mistral")
 
     # -------------------------------------------------------------------------
     # Tab: Transkript
@@ -1128,8 +1128,8 @@ elif st.session_state.phase == "feedback":
 
         if is_mock_mode():
             st.caption("ℹ️ Mock-Modus: Eingegebener Text")
-        elif not is_mock_mode() and OPENAI_AVAILABLE:
-            st.caption("🎙️ Transkribiert mit Whisper")
+        elif not is_mock_mode() and MISTRAL_AVAILABLE:
+            st.caption("🎙️ Transkribiert mit Voxtral")
 
     # -------------------------------------------------------------------------
     # Tab: Metriken
@@ -1359,5 +1359,5 @@ elif st.session_state.phase == "feedback":
 
 st.markdown("---")
 st.caption(
-    "🐻 Großer Bär v0.6.1 – Eingabefelder Fix mit Kleiner Bär Textanalyse + OpenAI"
+    "🐻 Großer Bär v0.6.1 – Eingabefelder Fix mit Kleiner Bär Textanalyse + Mistral"
 )
