@@ -14,7 +14,7 @@ import base64
 from pathlib import Path
 
 import streamlit as st
-from mistralai import Mistral
+from mistralai.client.sdk import Mistral
 
 # Zentraler System-Prompt aus prompts.py
 from grosser_baer.prompts import SYSTEM_PROMPT_COACH

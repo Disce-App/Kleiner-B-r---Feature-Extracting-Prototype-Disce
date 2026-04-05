@@ -156,7 +156,7 @@ def get_mistral_client():
         return None
     
     try:
-        from mistralai import Mistral
+        from mistralai.client.sdk import Mistral
         return Mistral(api_key=api_key)
     except ImportError:
         raise ImportError(
