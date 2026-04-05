@@ -55,8 +55,9 @@ from config.app_config import (
 try:
     from mistral_services import transcribe_audio, generate_coach_feedback, check_api_connection
     MISTRAL_AVAILABLE = True
-except ImportError:
+except Exception as e:
     MISTRAL_AVAILABLE = False
+    MISTRAL_IMPORT_ERROR = str(e)  # Echten Fehler speichern
 
 
 # =============================================================================
@@ -609,7 +610,7 @@ with st.sidebar:
             st.success("✅ Mistral API verfügbar")
         else:
             st.error("❌ Mistral API nicht verfügbar")
-            st.caption("Aktiviere Mock-Modus oder prüfe mistral_services.py")
+            st.caption(f"Fehler: {MISTRAL_IMPORT_ERROR}")
 
     # NEU: Debug-Modus Toggle (nur für Entwickler)
     if is_debug_mode():
