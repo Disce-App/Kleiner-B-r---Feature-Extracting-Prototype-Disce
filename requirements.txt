@@ -17,4 +17,4 @@ audio-recorder-streamlit
 anthropic
 
 requests
-mistralai>=1.0.0
+mistralai==2.3.0
